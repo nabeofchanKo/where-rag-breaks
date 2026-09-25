@@ -10,28 +10,15 @@ authors = [
 ]
 keywords = ["rag", "benchmark", "retrieval", "agentic", "evaluation", "japanese"]
 
+# 基本依存 = コーパス生成だけに必要なもの。
+# CI はこれと dev グループだけを入れる（torch を落とさないので速い）。
 dependencies = [
-    # ── コーパス生成 ─────────────────────────────────────
     "openpyxl>=3.1",        # xlsx（format / formula / chart_native）
     "python-docx>=1.1",     # docx（text / version）
     "python-pptx>=1.0",     # pptx（chart_only / hidden）
     "pymupdf>=1.24",        # PDF 生成とラスタライズ（scanned）
     "pillow>=10.4",         # 図形描画（layout）
     "matplotlib>=3.9",      # グラフ画像（chart_only）
-
-    # ── Arm A（classical）─────────────────────────────────
-    "rank-bm25>=0.2.2",     # BM25（疎検索）
-    "janome>=0.5",          # 日本語形態素解析（BM25 のトークナイザ。純Pythonで Windows 安全）
-    "sentence-transformers>=3.0",  # ローカル埋め込み（BGE-m3）
-    "numpy>=1.26",
-    "pypdf>=5.0",           # PDF テキスト抽出（実務で普通にやる範囲）
-    "pdfplumber>=0.11",     # 同上
-
-    # ── 実行・評価 ────────────────────────────────────────
-    "claude-agent-sdk>=0.1",  # Arm B/C のハーネス、および全アームの LLM 呼出
-    "pandas>=2.2",
-    "python-dotenv>=1.0",
-    "truststore>=0.9",      # OS証明書ストアでTLS検証（TLS傍受環境対応）
 ]
 
 [dependency-groups]
@@ -39,6 +26,26 @@ dev = [
     "pytest>=8.3",
     "ruff>=0.6",
 ]
+
+# アームの実行に必要なもの。torch を含むため重い。
+# 生成と決定性テストだけなら不要なので分離している。
+arms = [
+    "rank-bm25>=0.2.2",            # BM25（疎検索）
+    "janome>=0.5",                 # 日本語形態素解析。純Pythonで Windows 安全
+    "sentence-transformers>=3.0",  # ローカル埋め込み（BGE-m3）
+    "numpy>=1.26",
+    "pypdf>=5.0",                  # PDF テキスト抽出（実務で普通にやる範囲）
+    "pdfplumber>=0.11",
+    "claude-agent-sdk>=0.1",       # 全アーム共通の LLM 呼出／Arm B・C のハーネス
+    "pandas>=2.2",
+    "tabulate>=0.10",              # レポートの markdown 表（pandas.to_markdown）
+    "python-dotenv>=1.0",
+    "truststore>=0.9",             # OS証明書ストアでTLS検証（TLS傍受環境対応）
+]
+
+[tool.uv]
+# ローカルの `uv sync` は全部入り。CI は `--no-default-groups --group dev`。
+default-groups = ["dev", "arms"]
 
 [build-system]
 requires = ["hatchling"]

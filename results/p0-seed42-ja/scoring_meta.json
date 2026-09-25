@@ -1,0 +1,9 @@
+{
+  "judge_used": true,
+  "judge_model": "claude-sonnet-5",
+  "judge_system_prompt": "あなたは短答式の採点者である。表記の揺れだけを吸収し、意味が異なるものは\n容赦なく不正解にすること。数値は単位と桁が一致して初めて正解とする。\n",
+  "judge_overrode_exact": 14,
+  "judge_blocked_on_decoy": 42,
+  "textual_refusals_counted_as_answers": 18,
+  "n_rows": 432
+}

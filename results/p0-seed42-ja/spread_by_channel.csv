@@ -1,0 +1,5 @@
+﻿arm,mode,channel,accuracy_mean,accuracy_min,accuracy_max,n_repeats
+classical,abstain_ok,formula,0.3796296296296296,0.3611111111111111,0.3888888888888889,3
+classical,abstain_ok,text,1.0,1.0,1.0,3
+classical,forced,formula,0.4166666666666667,0.4166666666666667,0.4166666666666667,3
+classical,forced,text,1.0,1.0,1.0,3
