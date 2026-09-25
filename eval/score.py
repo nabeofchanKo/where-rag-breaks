@@ -52,6 +52,20 @@ JUDGE_TEMPLATE = """\
 """
 
 
+def matches_decoy(item: Item, candidate: str) -> bool:
+    """回答が「囮」に一致したか。
+
+    囮は「間違えるならこう間違えるはず」と生成時に予測した値
+    （例: 陳腐化したキャッシュ値）。単に不正解なのと、**設計どおりの
+    間違え方をした**のとでは意味がまったく違う。後者はチャネルの罠が
+    狙いどおり効いた証拠なので、別に数える。
+    """
+    if not candidate.strip() or not item.decoys:
+        return False
+    normalized = normalize_text(candidate)
+    return any(normalize_text(d) == normalized for d in item.decoys)
+
+
 def exact_match(item: Item, candidate: str) -> bool:
     """正規化 exact match。空回答は常に不正解。"""
     if not candidate.strip():
@@ -106,6 +120,8 @@ def score_rows(
                 "judged_by": judged_by,
                 "judge_reason": judge_reason,
                 "answered": bool(candidate.strip()) and not abstained,
+                "answered_decoy": matches_decoy(item, candidate),
+                "has_decoy": bool(item.decoys),
             }
         )
 
@@ -122,6 +138,8 @@ def summarise(frame: pd.DataFrame, by: list[str]) -> pd.DataFrame:
         correct = int(group["correct"].sum())
         answered = int(group["answered"].sum())
         incorrect = answered - correct
+        with_decoy = int(group["has_decoy"].sum())
+        took_decoy = int(group["answered_decoy"].sum())
         return pd.Series(
             {
                 "total": total,
@@ -132,6 +150,8 @@ def summarise(frame: pd.DataFrame, by: list[str]) -> pd.DataFrame:
                 "penalized": (correct - incorrect) / total if total else 0.0,
                 "answer_rate": answered / total if total else 0.0,
                 "precision": correct / answered if answered else 0.0,
+                # 「設計どおりの間違え方」をした割合。囮のある設問だけが母数。
+                "decoy_rate": took_decoy / with_decoy if with_decoy else float("nan"),
             }
         )
 
@@ -219,6 +239,15 @@ def main(argv: list[str] | None = None) -> int:
     pd.set_option("display.width", 160)
     print("── チャネル別（全 k をまとめた素の集計）────────────────")
     print(channel_summary.to_string(index=False))
+    print()
+    by_difficulty = summarise(frame, ["arm", "mode", "channel", "difficulty"])
+    by_difficulty.to_csv(args.run / "summary_by_difficulty.csv", index=False, encoding="utf-8-sig")
+
+    print("── 難易度別（= 罠の機構別）──────────────────────────────")
+    print(by_difficulty.to_string(index=False))
+    print()
+    print("decoy_rate … 囮（陳腐化したキャッシュ値など）をそのまま答えた割合。")
+    print("             囮のある設問だけが母数。NaN は囮のない段。")
     print()
     print("── チャネルごとの最良 k（SPEC §4-1）────────────────────")
     print(best_k.to_string(index=False))

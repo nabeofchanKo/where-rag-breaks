@@ -1,22 +1,41 @@
 """`formula` チャネル — 答えが数式とその参照範囲にある。
 
-SPEC §3-1 #3 / §3-5。**合計値はファイルのどこにも書かない。**
+SPEC §3-1 #3 / §3-5。
 
-なぜこれが古典的RAGを壊すのか:
-    openpyxl が書いた数式セルには**キャッシュ済み計算値が存在しない**。
-    ``data_only=True`` で読むと ``None`` が返る。つまり抽出テキストに合計値は
-    一切現れない。さらに金額列そのものも ``=数量*単価`` の数式なので、
-    個々の金額すら現れない。抽出できるのは数量・単価・区分と、数式の文字列だけ。
+━━ 設計履歴（重要）━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+初版は「合計値をどこにも書かない」だけの罠だった。**これは Arm A に 10/10 で
+突破された**（`results/pilot-k8-forced/`）。SPEC §2 の反証条件に該当する。
 
-    これは実装の手抜きではなく**構造**である（SPEC §11: 抽出器に意図的な穴を
-    作らない）。Arm A の抽出器は値と数式文字列の両方を出す。そのうえで、
-    行の対応関係を失ったテキストから積・条件付き合計・連鎖計算を復元できるか
-    が問われる。
+原因は Arm A の手抜きではなく罠の設計。集計結果だけを隠しても、**入力（数量・
+単価・区分）が読める形で残っていれば現代のモデルは再計算する**。実際モデルは
+数量×単価を12行ぶん計算し、別シートの税率を掛けて正解していた。
 
-難易度:
-    1 … 単純合計（SUM）
-    2 … 別シート参照 + 条件付き合計（SUMIF）
-    3 … 連鎖（SUM → 税率が別シート → 税込）
+SPEC §2「★ 反証されたら仕様を直す。結果に合わせて評価を曲げない」に従い、
+難易度の軸を「計算の複雑さ」から「**何が抽出不能か**」へ組み替えた。
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+難易度 = 罠の機構:
+
+    1 … **コントロール**。初版のまま（集計値なし・入力は読める）。
+        classical が解けて当然の段。ここが解けないなら実装がおかしい。
+        罠を積んだだけではないことを示すために**意図的に残している**。
+
+    2 … **k の窓に入らない**。明細を 240〜320 行にする。チャンク分割すると
+        十数個の断片になり、top-k がそれを全部は載せられない。検索が
+        失敗しているのではなく、窓が足りない。k を上げれば解けるが
+        コストが上がる（cost_accuracy.png の材料になる）。
+
+    3 … **キャッシュ値の陳腐化**。サマリシートの数式セルに、旧版の明細から
+        計算した値を後処理で注入する。``data_only=True`` で読むと、数式と
+        食い違う古い値が返る。classical は**自信満々に古い値を答える**。
+        この囮の値は ``Item.decoys`` に入れ、採点時に「囮を掴んだ割合」を
+        集計できるようにしてある。
+
+★ 難易度3の正解について:
+    明細の行が事実であり、サマリのキャッシュはそれと整合しない古い値である。
+    「この見積の税込総額は」と問われたときの正解は明細から計算した値であって、
+    古いキャッシュではない。ファイルには改訂履歴行を置いて、明細が新しい版で
+    あることが読み取れるようにしている。
 """
 
 from __future__ import annotations
@@ -29,21 +48,24 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font
 from openpyxl.utils import get_column_letter
 
-from gen.common import Item, normalize_artifact, number_aliases
+from gen.common import Item, inject_cached_value, normalize_artifact, number_aliases
 from gen.locales import Locale
 
 CHANNEL = "formula"
 SUBDIR = "quotes"
 
-HEADER_ROW = 3
-FIRST_DATA_ROW = 4
+HEADER_ROW = 4  # 1:表題 2:改訂履歴 3:空 4:見出し
+FIRST_DATA_ROW = 5
 TAX_RATE = Decimal("0.10")
 
-# (質問キー, 答えの種類, difficulty)
-QUESTION_SPECS: tuple[tuple[str, str, int], ...] = (
-    ("q_subtotal", "subtotal", 1),
-    ("q_approved", "approved", 2),
-    ("q_total", "total", 3),
+SMALL_ROWS = (8, 13)  # 難易度1・3
+LARGE_ROWS = (240, 321)  # 難易度2（チャンクの窓を超えさせる）
+
+# (質問キー, 答えの種類, difficulty, 行数の規模, キャッシュを陳腐化させるか)
+QUESTION_SPECS: tuple[tuple[str, str, int, tuple[int, int], bool], ...] = (
+    ("q_subtotal", "subtotal", 1, SMALL_ROWS, False),
+    ("q_subtotal", "subtotal", 2, LARGE_ROWS, False),
+    ("q_total", "total", 3, SMALL_ROWS, True),
 )
 
 
@@ -55,28 +77,53 @@ def _excel_round(value: Decimal) -> int:
     return int(value.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
 
-def _make_lines(rng: random.Random, loc: Locale) -> list[dict]:
+def _item_name(loc: Locale, rng: random.Random, index: int, many: bool) -> str:
+    base = loc.items[index % len(loc.items)] if many else rng.choice(loc.items)
+    if not many:
+        return base
+    # 大規模な明細では同じ品目が枝番つきで何度も出る（実在の部品表に近い形）
+    return loc.fmt("xl_item_numbered", item=base, n=index + 1)
+
+
+def _make_lines(rng: random.Random, loc: Locale, rows: tuple[int, int]) -> list[dict]:
     """明細行を決める。ここで確定した値がそのまま正解計算の入力になる。"""
-    n = rng.randrange(8, 13)
-    items = rng.sample(loc.items, n)
+    n = rng.randrange(*rows)
+    many = n > len(loc.items)
+    names = (
+        [_item_name(loc, rng, i, True) for i in range(n)]
+        if many
+        else rng.sample(loc.items, n)
+    )
     approved, on_hold = loc.statuses
-    lines = []
-    for name in items:
-        lines.append(
-            {
-                "item": name,
-                "qty": rng.randrange(1, 25),
-                "unit_price": rng.randrange(12, 900) * 1000,
-                # 3 割前後を保留にする。全部承認済だと difficulty 2 が成立しない
-                "status": on_hold if rng.random() < 0.35 else approved,
-            }
-        )
+
+    lines = [
+        {
+            "item": name,
+            "qty": rng.randrange(1, 25),
+            "unit_price": rng.randrange(12, 900) * 1000,
+            "status": on_hold if rng.random() < 0.35 else approved,
+        }
+        for name in names
+    ]
     # 承認済と保留が最低1件ずつ存在することを保証する
     if all(line["status"] == approved for line in lines):
         lines[rng.randrange(n)]["status"] = on_hold
     if all(line["status"] == on_hold for line in lines):
         lines[rng.randrange(n)]["status"] = approved
     return lines
+
+
+def _previous_revision(rng: random.Random, lines: list[dict]) -> list[dict]:
+    """旧版の明細を作る。難易度3の陳腐化キャッシュはこれを元に計算する。
+
+    数量を何件か変えるだけにする（品目の増減まで変えると、旧版の合計が
+    現行の明細からは到底導けない数になり、囮として不自然になる）。
+    """
+    old = [dict(line) for line in lines]
+    for index in rng.sample(range(len(old)), min(3, len(old))):
+        delta = rng.choice((-3, -2, -1, 1, 2, 3))
+        old[index]["qty"] = max(1, old[index]["qty"] + delta)
+    return old
 
 
 def _compute(lines: list[dict], approved_label: str) -> dict[str, int]:
@@ -86,16 +133,11 @@ def _compute(lines: list[dict], approved_label: str) -> dict[str, int]:
         line["qty"] * line["unit_price"] for line in lines if line["status"] == approved_label
     )
     tax = _excel_round(Decimal(subtotal) * TAX_RATE)
-    return {
-        "subtotal": subtotal,
-        "approved": approved,
-        "tax": tax,
-        "total": subtotal + tax,
-    }
+    return {"subtotal": subtotal, "approved": approved, "tax": tax, "total": subtotal + tax}
 
 
 def _write_workbook(
-    path: Path, loc: Locale, code: str, project: str, lines: list[dict]
+    path: Path, loc: Locale, code: str, project: str, lines: list[dict], revision: int
 ) -> None:
     """明細 / サマリ / 設定 の3シートを書く。**計算結果はどこにも書かない。**"""
     wb = Workbook()
@@ -107,7 +149,7 @@ def _write_workbook(
     # ── 明細シート ────────────────────────────────────────
     detail["A1"] = loc.fmt("xl_title", project=project, code=code)
     detail["A1"].font = Font(bold=True, size=13)
-    detail["A2"] = loc.s["xl_note"]
+    detail["A2"] = loc.fmt("xl_revision", n=revision)
 
     headers = ("xl_h_item", "xl_h_qty", "xl_h_unit_price", "xl_h_amount", "xl_h_status")
     for col, key in enumerate(headers, start=1):
@@ -128,7 +170,7 @@ def _write_workbook(
     for col, width in enumerate((26, 8, 12, 14, 12), start=1):
         detail.column_dimensions[get_column_letter(col)].width = width
 
-    # ── 設定シート（税率は別シートに置く。difficulty 3 の連鎖の起点）──
+    # ── 設定シート（税率は別シート。難易度3の連鎖の起点）──
     config["A1"] = loc.s["xl_sheet_config"]
     config["A1"].font = Font(bold=True)
     config["A2"] = loc.s["xl_l_tax_rate"]
@@ -159,32 +201,61 @@ def _write_workbook(
 
     path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(path)
-    normalize_artifact(path)
 
 
-def _build(rng: random.Random, outdir: Path, loc: Locale, code: str) -> tuple[dict[str, int], str]:
+# サマリシートの行と、そこに入る値のキー
+_SUMMARY_CELLS = (("B2", "subtotal"), ("B3", "approved"), ("B4", "tax"), ("B5", "total"))
+
+
+def _build(
+    rng: random.Random,
+    outdir: Path,
+    loc: Locale,
+    code: str,
+    rows: tuple[int, int],
+    stale: bool,
+) -> tuple[dict[str, int], dict[str, int] | None, str]:
+    """1 ファイルを生成して (正解の集計, 陳腐化した集計 or None, 相対パス) を返す。"""
     project = rng.choice(loc.project_names)
-    lines = _make_lines(rng, loc)
+    lines = _make_lines(rng, loc, rows)
+    revision = rng.randrange(2, 5) if stale else 1
+
     rel = f"{SUBDIR}/{code}_quotation.xlsx"
-    _write_workbook(outdir / rel, loc, code, project, lines)
-    return _compute(lines, loc.statuses[0]), rel
+    path = outdir / rel
+    _write_workbook(path, loc, code, project, lines, revision)
+
+    totals = _compute(lines, loc.statuses[0])
+    old_totals = None
+
+    if stale:
+        # 旧版の明細から計算した値をキャッシュとして注入する。
+        # サマリ全体を旧版で揃えるので、シート内では辻褄が合って見える。
+        old_totals = _compute(_previous_revision(rng, lines), loc.statuses[0])
+        for cell_ref, key in _SUMMARY_CELLS:
+            inject_cached_value(path, loc.s["xl_sheet_summary"], cell_ref, old_totals[key])
+
+    normalize_artifact(path)
+    return totals, old_totals, rel
 
 
 def _unit(loc: Locale) -> str:
     return "円" if loc.code == "ja" else ""
 
 
-def generate(
-    rng: random.Random, outdir: Path, n_questions: int, locale: Locale
-) -> list[Item]:
+def generate(rng: random.Random, outdir: Path, n_questions: int, locale: Locale) -> list[Item]:
     """SPEC §3-3 の生成器契約（locale を追加したもの）。"""
     codes = [f"QT-{n:04d}" for n in rng.sample(range(1000, 5000), n_questions)]
 
     items: list[Item] = []
     for i, code in enumerate(codes):
-        question_key, field, difficulty = QUESTION_SPECS[i % len(QUESTION_SPECS)]
-        totals, rel = _build(rng, outdir, locale, code)
+        question_key, field, difficulty, rows, stale = QUESTION_SPECS[i % len(QUESTION_SPECS)]
+        totals, old_totals, rel = _build(rng, outdir, locale, code, rows, stale)
         value = totals[field]
+
+        # 囮 = 陳腐化したキャッシュ値。診断用でアームには渡さない。
+        decoys = []
+        if old_totals is not None and old_totals[field] != value:
+            decoys.append(str(old_totals[field]))
 
         items.append(
             Item(
@@ -195,6 +266,7 @@ def generate(
                 answer_type="number",
                 answer_aliases=number_aliases(value, _unit(locale))[1:],
                 source_files=[rel],
+                decoys=decoys,
                 difficulty=difficulty,
                 locale=locale.code,
             )
@@ -205,10 +277,15 @@ def generate(
 def generate_fillers(
     rng: random.Random, outdir: Path, count: int, locale: Locale
 ) -> list[str]:
-    """設問を持たない見積書を足す（ディストラクタ）。"""
+    """設問を持たない見積書を足す（ディストラクタ）。
+
+    規模も陳腐化の有無も設問つきファイルと同じ分布にする。形式で当てられると
+    検索の評価にならないため。
+    """
     written: list[str] = []
     # 設問用コード（1000-4999）と番号帯を分けているので衝突しない
     for n in rng.sample(range(5000, 9999), count):
-        _, rel = _build(rng, outdir, locale, f"QT-{n:04d}")
+        _, _, _, rows, stale = QUESTION_SPECS[rng.randrange(len(QUESTION_SPECS))]
+        _, _, rel = _build(rng, outdir, locale, f"QT-{n:04d}", rows, stale)
         written.append(rel)
     return written

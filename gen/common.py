@@ -51,6 +51,9 @@ class Item:
     answer_type: str  # ANSWER_TYPES のいずれか
     answer_aliases: list[str] = field(default_factory=list)  # 許容表記
     source_files: list[str] = field(default_factory=list)  # 診断用。アームには渡さない
+    # 「間違えるならこう間違えるはず」という値。診断用でアームには渡さない。
+    # 例: 陳腐化したキャッシュ値。採点時に「囮を掴んだ割合」を集計する。
+    decoys: list[str] = field(default_factory=list)
     difficulty: int = 1  # 1-3
     locale: str = "ja"
 
@@ -63,6 +66,8 @@ class Item:
             raise ValueError(f"difficulty must be 1-3: {self.difficulty}")
         if not self.answer.strip():
             raise ValueError(f"{self.qid}: answer is empty")
+        if any(d.strip() == self.answer.strip() for d in self.decoys):
+            raise ValueError(f"{self.qid}: decoy が正解と同一。囮になっていない")
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -138,6 +143,60 @@ def normalize_ooxml(path: Path) -> None:
             info.create_system = 0  # FAT。プラットフォーム差を消す
             zf.writestr(info, data)
     tmp.replace(path)
+
+
+def inject_cached_value(path: Path, sheet_name: str, cell_ref: str, value: int | float) -> None:
+    """数式セルに**陳腐化したキャッシュ値**を注入する（SPEC §3-5 の変種）。
+
+    openpyxl は数式セルを ``<c r="B5"><f>B2+B4</f><v></v></c>`` の形で書く。
+    ``<v>`` が空なので ``data_only=True`` で読むと ``None`` が返る。ここに
+    数式の計算結果と**食い違う**値を入れると、「表示値は古いままだが数式は
+    新しい」という実在のファイルと同じ状態になる。
+
+    この状態のファイルを値だけ読むと、古い値を掴んで**自信満々に間違える**。
+    Excel で開けば再計算されるが、プログラムから値を読む経路では再計算されない。
+
+    シート名から実ファイルを引くのに workbook.xml とリレーションを辿る
+    （シート順に sheet1.xml が対応する保証はないため）。
+    """
+    import re as _re
+
+    with zipfile.ZipFile(path) as zf:
+        entries = {info.filename: zf.read(info.filename) for info in zf.infolist()}
+        order = [info.filename for info in zf.infolist()]
+
+    workbook = entries["xl/workbook.xml"].decode("utf-8")
+    escaped = _xml_escape(sheet_name)
+    match = _re.search(rf'<sheet [^>]*name="{_re.escape(escaped)}"[^>]*r:id="([^"]+)"', workbook)
+    if match is None:
+        raise ValueError(f"シートが見つからない: {sheet_name}")
+    rel_id = match.group(1)
+
+    rels = entries["xl/_rels/workbook.xml.rels"].decode("utf-8")
+    target = _re.search(rf'<Relationship [^>]*Target="([^"]+)"[^>]*Id="{rel_id}"', rels)
+    if target is None:
+        target = _re.search(rf'<Relationship [^>]*Id="{rel_id}"[^>]*Target="([^"]+)"', rels)
+    if target is None:
+        raise ValueError(f"シートのリレーションが見つからない: {rel_id}")
+
+    sheet_entry = "xl/" + target.group(1).removeprefix("/xl/").removeprefix("xl/")
+
+    xml = entries[sheet_entry].decode("utf-8")
+    pattern = _re.compile(rf'(<c r="{_re.escape(cell_ref)}"[^>]*>\s*<f>.*?</f>\s*)<v></v>', _re.S)
+    patched, n = pattern.subn(rf"\g<1><v>{value}</v>", xml, count=1)
+    if n != 1:
+        raise ValueError(f"数式セルが見つからない: {sheet_name}!{cell_ref}")
+    entries[sheet_entry] = patched.encode("utf-8")
+
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    with zipfile.ZipFile(tmp, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
+        for name in order:
+            zf.writestr(name, entries[name])
+    tmp.replace(path)
+
+
+def _xml_escape(text: str) -> str:
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
 _OOXML_SUFFIXES = {".docx", ".xlsx", ".pptx", ".docm", ".xlsm", ".pptm"}

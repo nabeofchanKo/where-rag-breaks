@@ -13,7 +13,7 @@ import pytest
 
 from arms.classical.chunk import chunk_blocks
 from arms.classical.extract import Block, extract_corpus
-from eval.score import exact_match
+from eval.score import exact_match, matches_decoy
 from gen.__main__ import generate_corpus
 from gen.common import Item, normalize_text, number_aliases, read_questions_jsonl
 
@@ -22,7 +22,7 @@ from gen.common import Item, normalize_text, number_aliases, read_questions_json
 def corpus(tmp_path_factory: pytest.TempPathFactory) -> Path:
     out = tmp_path_factory.mktemp("corpus")
     generate_corpus(
-        seed=42, files=12, questions=3, locale_code="ja", channels=["formula", "text"], out=out
+        seed=42, files=14, questions=3, locale_code="ja", channels=["formula", "text"], out=out
     )
     return out
 
@@ -33,6 +33,51 @@ def test_extracts_both_formats(corpus: Path) -> None:
     suffixes = {Path(b.path).suffix for b in blocks}
     assert suffixes == {".docx", ".xlsx"}
     assert all(b.text.strip() for b in blocks)
+
+
+def test_formula_channel_has_all_three_traps(corpus: Path) -> None:
+    """`formula` の3段が実際に作られている（SPEC §2 の反証を受けた作り直し）。
+
+    難易度1 はコントロール（罠なし）、2 は k の窓超え、3 は陳腐化キャッシュ。
+    段が潰れると、どの機構が効いたのかを結果から切り分けられなくなる。
+    """
+    from openpyxl import load_workbook
+
+    items = [
+        it for it in read_questions_jsonl(corpus / "questions.jsonl") if it.channel == "formula"
+    ]
+    by_difficulty = {it.difficulty: it for it in items}
+    assert set(by_difficulty) == {1, 2, 3}, "3段そろっていない"
+
+    def rows_of(item) -> int:
+        ws = load_workbook(corpus / "files" / item.source_files[0], data_only=False)["明細"]
+        return sum(1 for r in ws.iter_rows(min_row=5) if r[0].value is not None)
+
+    assert rows_of(by_difficulty[1]) < 20, "難易度1 は小規模明細のはず"
+    assert rows_of(by_difficulty[2]) > 200, "難易度2 は k の窓を超える規模のはず"
+
+    # 難易度3: 陳腐化したキャッシュ値が入っていて、それが囮として登録されている
+    d3 = by_difficulty[3]
+    cached = load_workbook(corpus / "files" / d3.source_files[0], data_only=True)["サマリ"]
+    assert cached["B5"].value is not None, "キャッシュ値が注入されていない"
+    assert str(cached["B5"].value) != d3.answer, "キャッシュ値が正解と一致している（囮になっていない）"
+    assert d3.decoys == [str(cached["B5"].value)], "囮が Item に記録されていない"
+
+    assert not by_difficulty[1].decoys and not by_difficulty[2].decoys
+
+
+def test_decoy_is_reachable_but_answer_is_not(corpus: Path) -> None:
+    """囮は抽出テキストに現れ、正解は現れない。
+
+    これが逆転していたら罠が成立していない。
+    """
+    haystack = normalize_text("\n".join(b.text for b in extract_corpus(corpus / "files")))
+    items = [
+        it for it in read_questions_jsonl(corpus / "questions.jsonl") if it.channel == "formula"
+    ]
+    for item in items:
+        for decoy in item.decoys:
+            assert normalize_text(decoy) in haystack, f"{item.qid}: 囮 {decoy} が読めない位置にある"
 
 
 def test_xlsx_extraction_keeps_formulas_and_cell_refs(corpus: Path) -> None:
@@ -133,3 +178,33 @@ def test_exact_match_accepts_declared_aliases() -> None:
     assert exact_match(item, "1,320円")
     assert exact_match(item, "1320")
     assert not exact_match(item, "1320ドル")
+
+
+def test_matches_decoy() -> None:
+    """囮の判定も正規化を通す（表記揺れで取りこぼさない）。"""
+    item = Item(
+        qid="f-01",
+        channel="formula",
+        question="?",
+        answer="37885100",
+        answer_type="number",
+        decoys=["38955400"],
+        locale="ja",
+    )
+    assert matches_decoy(item, "38,955,400")
+    assert not matches_decoy(item, "37885100")
+    assert not matches_decoy(item, "")
+
+
+def test_decoy_cannot_equal_the_answer() -> None:
+    """囮と正解が同一の Item は作れない（作れると採点が壊れる）。"""
+    with pytest.raises(ValueError, match="囮になっていない"):
+        Item(
+            qid="f-02",
+            channel="formula",
+            question="?",
+            answer="100",
+            answer_type="number",
+            decoys=["100"],
+            locale="ja",
+        )

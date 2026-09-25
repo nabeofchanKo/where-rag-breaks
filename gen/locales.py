@@ -116,7 +116,8 @@ JA = Locale(
         "xl_l_tax": "消費税額",
         "xl_l_total": "税込総額",
         "xl_l_tax_rate": "消費税率",
-        "xl_note": "金額欄は数量×単価で自動計算される。表示値ではなく計算式を正とする。",
+        "xl_revision": "改訂: 第{n}版（明細の数量を見直し済み）",
+        "xl_item_numbered": "{item} 枝番{n:03d}",
         "q_subtotal": "見積 {code} の明細合計（税抜）はいくらか。円単位の数値で答えよ。",
         "q_approved": (
             "見積 {code} のうち、区分が「承認済」となっている品目だけの合計金額"
@@ -221,10 +222,8 @@ EN = Locale(
         "xl_l_tax": "Tax",
         "xl_l_total": "Total incl. tax",
         "xl_l_tax_rate": "Tax rate",
-        "xl_note": (
-            "The amount column is computed as qty x unit price. "
-            "The formula, not any displayed value, is authoritative."
-        ),
+        "xl_revision": "Revision {n} (line item quantities revised)",
+        "xl_item_numbered": "{item} no.{n:03d}",
         "q_subtotal": (
             "What is the subtotal excluding tax of quotation {code}? Answer as a number."
         ),
