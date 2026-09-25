@@ -52,6 +52,26 @@ JUDGE_TEMPLATE = """\
 """
 
 
+# 「答えられない」と本文で言いながら abstained=false になっている回答を拾う語。
+# これ自体は採点を変えない。**交絡の有無を可視化するためだけ**に数える。
+_REFUSAL_MARKERS = (
+    "不明", "算出不可", "回答不可", "情報不足", "判断できません", "特定できません",
+    "cannot", "unable", "insufficient", "not enough", "unknown",
+)
+
+
+def looks_like_refusal(candidate: str) -> bool:
+    """本文が事実上の棄権になっているか。
+
+    棄権フラグを立てずに「抜粋からは算出不可」と書く回答は、
+    ``answered`` として数えると誤答扱いになり ``penalized`` を押し下げる。
+    採点自体は契約どおり（abstained フラグを正とする）にしたうえで、
+    件数だけを別に記録して、結果を読むときの交絡として開示する。
+    """
+    lowered = candidate.casefold()
+    return any(m.casefold() in lowered for m in _REFUSAL_MARKERS)
+
+
 def matches_decoy(item: Item, candidate: str) -> bool:
     """回答が「囮」に一致したか。
 
@@ -131,6 +151,8 @@ def score_rows(
                 "answered": bool(candidate.strip()) and not abstained,
                 "answered_decoy": took_decoy,
                 "has_decoy": bool(item.decoys),
+                # 採点には使わない。開示用の診断列。
+                "textual_refusal": (not abstained) and looks_like_refusal(candidate),
             }
         )
 
@@ -229,6 +251,7 @@ def main(argv: list[str] | None = None) -> int:
         table.to_csv(args.run / name, index=False, encoding="utf-8-sig")
 
     disagreements = frame.attrs.get("judge_disagreements", 0)
+    textual_refusals = int(frame["textual_refusal"].sum())
     (args.run / "scoring_meta.json").write_text(
         json.dumps(
             {
@@ -237,6 +260,9 @@ def main(argv: list[str] | None = None) -> int:
                 "judge_system_prompt": None if args.no_judge else JUDGE_SYSTEM,
                 "judge_overrode_exact": disagreements,
                 "judge_blocked_on_decoy": frame.attrs.get("judge_blocked_on_decoy", 0),
+                # 棄権フラグを立てずに本文で「算出不可」と答えた件数。
+                # 0 でなければ penalized が実態より低く出ている可能性がある。
+                "textual_refusals_counted_as_answers": textual_refusals,
                 "n_rows": len(frame),
             },
             ensure_ascii=False,
@@ -269,6 +295,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"judge が exact を覆した件数: {disagreements}")
     print(f"囮に一致したため judge にかけなかった件数: "
           f"{frame.attrs.get('judge_blocked_on_decoy', 0)}")
+    print(f"棄権フラグを立てずに本文で答えを拒否した件数: {textual_refusals}"
+          "（0 でなければ penalized が実態より低く出ている）")
     print(f"出力: {out_csv}")
     return 0
 
