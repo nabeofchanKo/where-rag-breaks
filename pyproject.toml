@@ -38,6 +38,7 @@ arms = [
     "pdfplumber>=0.11",
     "claude-agent-sdk>=0.1",       # 全アーム共通の LLM 呼出／Arm B・C のハーネス
     "pandas>=2.2",
+    "tabulate>=0.10",              # レポートの markdown 表（pandas.to_markdown）
     "python-dotenv>=1.0",
     "truststore>=0.9",             # OS証明書ストアでTLS検証（TLS傍受環境対応）
 ]
