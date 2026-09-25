@@ -217,7 +217,19 @@ def main(argv: list[str] | None = None) -> int:
         json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n"
     )
 
+    # ── 密閉性の検証（SPEC §4-2: Arm A はツールなし）────────────
+    # tool_results > 0 は「ツールが実際に結果を返した」ということ。
+    # Arm A ではこれが 0 でなければ測定として無効なので、必ず表示する。
+    leaked = sum(
+        json.loads(line).get("tool_results", 0)
+        for line in raw_path.read_text(encoding="utf-8").splitlines()
+        if line
+    )
     print()
+    if leaked:
+        print(f"⚠️  ツールが結果を返した回数: {leaked} — Arm A の定義が破れている。調査が必要")
+    else:
+        print("✅ ツールが結果を返した回数: 0（Arm A はツールなしで動作した）")
     print(f"完了: {executed} 回実行 → {raw_path}")
     print(f"採点: uv run python -m eval.score --run {run_dir}")
     return 0

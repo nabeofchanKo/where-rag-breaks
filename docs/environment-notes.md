@@ -99,3 +99,31 @@ Python の NFC リテラルで組んだパスは `exists() == False` になる�
 
 実データ検証（SPEC §9 / P5）で外部ファイルを扱うときは、`listdir` で実名を
 取得して NFC 比較する処理が必要になる。
+
+---
+
+## 5. Claude Agent SDK が実行者の MCP 設定を引き込む
+
+**症状**: ツールを渡していないはずの Arm A の呼出に、`tool_calls=1` が記録される。
+ツール名は `mcp__claude_ai_Claude_Docs__guide` で、このベンチマークとは無関係。
+
+**原因**: SDK が起動する `claude` サブプロセスは、既定で実行者の環境に設定された
+MCP サーバを読み込む。`setting_sources=None` を指定しても MCP サーバは止まらない。
+
+**なぜ致命的か**: 呼出は権限で拒否されるためデータは漏れない。しかし
+「ベースラインが実行者の手元の設定を見られる」状態で測った数字は他人の環境で
+再現できない。公平な比較を前提にするベンチマークではこれだけで run が無効になる。
+
+**対処**: [`arms/llm.py`](../arms/llm.py) で外から入る経路を全部塞ぐ。
+
+```python
+mcp_servers={}, strict_mcp_config=True,
+setting_sources=None, skills=None, plugins=[],
+```
+
+あわせて呼出ごとに `tool_names` / `tool_results` / `permission_denials` を記録し、
+`eval/run.py` が実行の最後に「ツールが結果を返した回数」を表示する。Arm A で
+これが 0 でない run は無効として扱う。
+
+発覚時の経緯と破棄した run は
+[`results/discarded-20260925-nonhermetic/`](../results/discarded-20260925-nonhermetic/README.md)。

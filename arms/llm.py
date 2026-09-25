@@ -23,7 +23,9 @@ from claude_agent_sdk import (
     ClaudeAgentOptions,
     ResultMessage,
     TextBlock,
+    ToolResultBlock,
     ToolUseBlock,
+    UserMessage,
     query,
 )
 
@@ -109,6 +111,12 @@ class LLMResult:
     output_tokens: int = 0
     cost_usd: float = 0.0
     tool_calls: int = 0
+    # ツールを**実際に実行できたか**の検証用（SPEC §4-2: Arm A はツールなし）。
+    # tool_calls はモデルが呼ぼうとした回数。拒否されれば結果は返らないので、
+    # tool_results が 0 である限り Arm A の定義は破れていない。
+    tool_names: list[str] = field(default_factory=list)
+    tool_results: int = 0
+    permission_denials: int = 0
     files_opened: list[str] = field(default_factory=list)
     num_turns: int = 0  # 「1 invoke」が本当に 1 往復で終わったかの検証用
     model: str = ""
@@ -153,14 +161,29 @@ async def _run(
         tools=allowed_tools or [],
         permission_mode="bypassPermissions" if allowed_tools else "default",
         cwd=str(cwd) if cwd else None,
-        # ユーザーの CLAUDE.md や設定が混ざると再現性が壊れるため読み込まない
-        setting_sources=None,
-        skills=None,
+        # ── 実行環境を密閉する ────────────────────────────────
+        # ここを緩めると、ベンチマークの結果が「実行した人の手元の設定」に
+        # 依存してしまう。公平な比較という前提そのものが崩れるので、
+        # 外から入ってくる経路をすべて塞ぐ。
+        #
+        # ★ 実測: これを入れる前は、実行者の claude.ai コネクタ由来の
+        #   MCP ツール（mcp__claude_ai_Claude_Docs__guide）が Arm A の
+        #   サブプロセスに現れていた。許可は下りなかったのでデータは
+        #   漏れていないが、往復を1回余計に消費し、1件は max_turns 超過で
+        #   落ちた。詳細は docs/environment-notes.md。
+        mcp_servers={},  # MCP サーバを一切読み込まない
+        strict_mcp_config=True,  # 外部の MCP 設定ファイルを無視する
+        setting_sources=None,  # ユーザーの CLAUDE.md や settings.json を読まない
+        skills=None,  # スキルを読み込まない
+        plugins=[],  # プラグインを読み込まない
     )
 
     text_parts: list[str] = []
     num_turns = 0
     tool_calls = 0
+    tool_names: list[str] = []
+    tool_results = 0
+    permission_denials = 0
     files_opened: list[str] = []
     in_tok = out_tok = 0
     cost = 0.0
@@ -175,10 +198,18 @@ async def _run(
                     text_parts.append(block.text)
                 elif isinstance(block, ToolUseBlock):
                     tool_calls += 1
+                    tool_names.append(block.name)
                     if block.name in _FILE_TOOLS:
                         files_opened.extend(_extract_opened_files(block))
+        elif isinstance(message, UserMessage):
+            # ツールが実際に結果を返したかどうか。拒否されればここには来ない。
+            content = message.content if isinstance(message.content, list) else []
+            for block in content:
+                if isinstance(block, ToolResultBlock):
+                    tool_results += 1
         elif isinstance(message, ResultMessage):
             num_turns = int(message.num_turns or 0)
+            permission_denials = len(message.permission_denials or [])
             in_tok, out_tok = _usage_tokens(message.usage)
             cost = float(message.total_cost_usd or 0.0)
             is_error = bool(message.is_error)
@@ -195,6 +226,9 @@ async def _run(
         output_tokens=out_tok,
         cost_usd=cost,
         tool_calls=tool_calls,
+        tool_names=tool_names,
+        tool_results=tool_results,
+        permission_denials=permission_denials,
         files_opened=sorted(set(files_opened)),
         num_turns=num_turns,
         model=model,

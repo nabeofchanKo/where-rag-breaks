@@ -134,6 +134,9 @@ class ClassicalArm:
             output_tokens=result.output_tokens,
             cost_usd=result.cost_usd,
             tool_calls=result.tool_calls,
+            tool_names=result.tool_names,
+            tool_results=result.tool_results,
+            permission_denials=result.permission_denials,
             num_turns=result.num_turns,
             files_opened=[],  # Arm A はファイルを開かない。これが定義そのもの
             k=self.k,

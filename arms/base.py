@@ -72,6 +72,9 @@ class ArmAnswer:
     output_tokens: int = 0
     cost_usd: float = 0.0
     tool_calls: int = 0
+    tool_names: list[str] = field(default_factory=list)
+    tool_results: int = 0
+    permission_denials: int = 0
     num_turns: int = 0
     files_opened: list[str] = field(default_factory=list)
 
