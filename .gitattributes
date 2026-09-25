@@ -1,0 +1,11 @@
+# 既定: テキストは LF で正規化して保存する（CI が Linux で回るため）
+* text=auto eol=lf
+
+# バイナリ（コーパス生成物を誤って変換させない）
+*.png binary
+*.jpg binary
+*.pdf binary
+*.docx binary
+*.xlsx binary
+*.pptx binary
+*.zip binary
