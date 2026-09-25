@@ -12,6 +12,20 @@
     - docx は見出し階層を保ち、表もセル区切りを保って出す
 
 そのうえで落ちるなら、それがこのベンチマークの主張である。
+
+★ **抽出範囲の線引き（開示事項）**
+    SPEC §4-1 は抽出範囲を「python-docx のテキスト、openpyxl の値、
+    pypdf/pdfplumber のテキスト、python-pptx の**図形テキスト**」と定めている。
+    この線引きの結果、次のものは抽出されない。
+
+    - **pptx の発表者ノート** … スライドの図形ツリーではなく
+      ``slide.notes_slide`` という別の場所にある。`hidden` チャネルの前提そのもの
+    - **セルの塗り色・文字色・太字** … 値の抽出には現れない。`format` の前提
+    - **画像の中身** … OCR を掛けない。`chart_only` / `layout` / `scanned` の前提
+
+    これらを取りに行けば該当チャネルは定義上消える。取りに行かないのは
+    「実務の既定の挙動を測る」というこのベンチマークの目的によるもので、
+    隠したい弱点ではない。**ここに明記したうえで測っている。**
 """
 
 from __future__ import annotations
@@ -25,9 +39,9 @@ from docx.text.paragraph import Paragraph
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
 
-# 抽出できる拡張子。ここに無いものは「本文テキストが取れないファイル」として
-# 扱う（画像だけの PDF や PNG など。P1 以降のチャネルで効いてくる）。
-SUPPORTED = {".docx", ".xlsx"}
+# 抽出できる拡張子。ここに無いものは「本文テキストが取れないファイル」として扱う
+# （PNG など。OCR は掛けない）。
+SUPPORTED = {".docx", ".xlsx", ".pptx", ".pdf"}
 
 
 @dataclass(frozen=True)
@@ -152,8 +166,77 @@ def extract_xlsx(path: Path, rel: str) -> list[Block]:
     return blocks
 
 
+# ── pptx ────────────────────────────────────────────────────────────
+def _shape_text(shape) -> str:
+    """図形のテキスト。表は行ごとにセル区切りを残す。"""
+    if shape.has_table:
+        return "\n".join(
+            " | ".join(cell.text.strip() for cell in row.cells) for row in shape.table.rows
+        )
+    if shape.has_text_frame:
+        return "\n".join(p.text for p in shape.text_frame.paragraphs if p.text.strip())
+    return ""
+
+
+def extract_pptx(path: Path, rel: str) -> list[Block]:
+    """スライドごとに図形テキストをまとめる。
+
+    ★ 発表者ノート（``slide.notes_slide``）は**取らない**。SPEC §4-1 の
+    「python-pptx の図形テキスト」という線引きによるもので、`hidden` チャネルの
+    前提そのもの。モジュール冒頭の開示事項を参照。
+    """
+    from pptx import Presentation
+
+    prs = Presentation(path)
+    blocks: list[Block] = []
+    for index, slide in enumerate(prs.slides, start=1):
+        parts = [t for t in (_shape_text(shape) for shape in slide.shapes) if t.strip()]
+        if parts:
+            blocks.append(
+                Block(path=rel, locator=f"スライド {index}", text="\n".join(parts))
+            )
+    return blocks
+
+
+# ── pdf ─────────────────────────────────────────────────────────────
+def extract_pdf(path: Path, rel: str) -> list[Block]:
+    """ページごとにテキストを取る。
+
+    pdfplumber を先に試し、取れなければ pypdf に落とす（実務で普通にやる範囲）。
+    画像だけの PDF（`scanned` チャネル）はどちらでも空になる。これは抽出器の
+    穴ではなく、**テキスト層が存在しない**という構造。
+    """
+    texts: list[str] = []
+    try:
+        import pdfplumber
+
+        with pdfplumber.open(path) as pdf:
+            texts = [(page.extract_text() or "") for page in pdf.pages]
+    except Exception:  # noqa: BLE001 — pdfplumber が読めない PDF は pypdf に任せる
+        texts = []
+
+    if not any(t.strip() for t in texts):
+        try:
+            from pypdf import PdfReader
+
+            texts = [(page.extract_text() or "") for page in PdfReader(str(path)).pages]
+        except Exception:  # noqa: BLE001
+            texts = []
+
+    return [
+        Block(path=rel, locator=f"ページ {i}", text=text)
+        for i, text in enumerate(texts, start=1)
+        if text.strip()
+    ]
+
+
 # ── 入口 ────────────────────────────────────────────────────────────
-_EXTRACTORS = {".docx": extract_docx, ".xlsx": extract_xlsx}
+_EXTRACTORS = {
+    ".docx": extract_docx,
+    ".xlsx": extract_xlsx,
+    ".pptx": extract_pptx,
+    ".pdf": extract_pdf,
+}
 
 
 def extract_file(path: Path, rel: str) -> list[Block]:

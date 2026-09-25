@@ -18,15 +18,18 @@ from __future__ import annotations
 
 from types import ModuleType
 
-from gen.channels import formula, text
+from gen.channels import cross_file, format, formula, hidden, text
 
 # 実装済みのチャネル。SPEC §8 のフェーズが進むごとにここへ足していく。
 #   P0: text, formula
-#   P1: format, chart_only, chart_native, scanned, layout, version,
-#       cross_file, hidden, locked
+#   P1: format, hidden, cross_file ← 実装済み
+#       chart_only, chart_native, scanned, layout, version, locked ← 未実装
 REGISTRY: dict[str, ModuleType] = {
     "text": text,
     "formula": formula,
+    "format": format,
+    "hidden": hidden,
+    "cross_file": cross_file,
 }
 
 ALL_CHANNELS = tuple(sorted(REGISTRY))

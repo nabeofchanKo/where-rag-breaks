@@ -199,17 +199,58 @@ def _xml_escape(text: str) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
+# PDF のうち実行ごとに変わる部分。**同じ長さで置換する**こと。
+# PDF は xref テーブルがバイトオフセットを持っているため、長さを変えると
+# ファイルが壊れる。
+_PDF_ID_RE = re.compile(rb"(/ID\s*\[\s*<)([0-9A-Fa-f]*)(>\s*<)([0-9A-Fa-f]*)(>\s*\])")
+_PDF_DATE_RE = re.compile(rb"(/(?:CreationDate|ModDate)\s*\()([^)]*)(\))")
+
+
+def normalize_pdf(path: Path) -> None:
+    """PDF をバイト再現可能にする（インプレース）。
+
+    PyMuPDF は保存のたびにランダムな ``/ID`` を書く。メタデータを空にしても
+    残るため、ここで潰さないと ``scanned`` チャネルは同 seed でも
+    バイト一致しない。
+
+    ★ 置換は**必ず同じバイト長**で行う。PDF の xref はオブジェクトの
+    バイトオフセットを持っているので、1 バイトでもずれるとファイルが壊れる。
+    """
+    raw = path.read_bytes()
+
+    def fixed_id(m: re.Match[bytes]) -> bytes:
+        return (
+            m.group(1) + b"0" * len(m.group(2)) + m.group(3)
+            + b"0" * len(m.group(4)) + m.group(5)
+        )
+
+    def fixed_date(m: re.Match[bytes]) -> bytes:
+        original = m.group(2)
+        stamp = b"D:20260101000000Z"
+        # 長さを合わせる（足りなければ空白で埋め、長ければ切る）
+        adjusted = stamp[: len(original)].ljust(len(original), b" ")
+        return m.group(1) + adjusted + m.group(3)
+
+    raw = _PDF_ID_RE.sub(fixed_id, raw)
+    raw = _PDF_DATE_RE.sub(fixed_date, raw)
+    path.write_bytes(raw)
+
+
 _OOXML_SUFFIXES = {".docx", ".xlsx", ".pptx", ".docm", ".xlsm", ".pptm"}
 
 
 def normalize_artifact(path: Path) -> None:
     """生成物を決定的な形に正規化する。拡張子で処理を振り分ける。
 
-    OOXML 以外（PDF / PNG）は、生成側でタイムスタンプを埋め込まない書き方を
-    しているため追加処理は不要。詳細は各チャネルの生成器を参照。
+    PNG は生成側で対処する（matplotlib は既定で Software 名を埋め込むので
+    ``metadata={"Software": None}`` を渡す。PIL は既定では何も埋め込まない）。
+    詳細は ``gen/imaging.py``。
     """
-    if path.suffix.lower() in _OOXML_SUFFIXES:
+    suffix = path.suffix.lower()
+    if suffix in _OOXML_SUFFIXES:
         normalize_ooxml(path)
+    elif suffix == ".pdf":
+        normalize_pdf(path)
 
 
 # ── ハッシュ（決定性テスト用）────────────────────────────────────────

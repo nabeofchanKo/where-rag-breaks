@@ -125,6 +125,45 @@ JA = Locale(
             "（税抜）はいくらか。円単位の数値で答えよ。"
         ),
         "q_total": "見積 {code} の税込総額はいくらか。円単位の数値で答えよ。",
+        # ── format チャネル ──────────────────────────────────
+        "fm_sheet": "検査記録",
+        "fm_title": "{site} 受入検査記録（{code}）",
+        "fm_h_id": "管理番号",
+        "fm_h_item": "品目",
+        "fm_h_value": "測定値",
+        "fm_h_spec": "規格値",
+        "fm_h_note": "備考",
+        "fm_note_flagged": "要再検査",
+        "fm_note_decoy": "確認中",
+        "q_format": (
+            "検査記録 {code} で、背景が黄色く塗られている行の管理番号を答えよ。"
+        ),
+        # ── hidden チャネル ──────────────────────────────────
+        "hd_title": "{project} ご提案（{code}）",
+        "hd_slide_overview": "提案概要",
+        "hd_slide_price": "お見積り",
+        "hd_slide_schedule": "スケジュール",
+        "hd_body_overview": "{site}における{project}をご提案いたします。",
+        "hd_body_price": "詳細は別紙見積書をご参照ください。",
+        "hd_body_schedule": "着手から完了までおよそ{months}か月を想定しています。",
+        "hd_note_discount": (
+            "社内メモ: 本件の値引き上限は{rate}%。これを超える場合は部長決裁が必要。"
+        ),
+        "hd_body_discount_shown": "想定値引き率: {rate}%",
+        "hd_body_discount_decoy": "参考: 前回案件の値引き率は{rate}%でした。",
+        "q_hidden": (
+            "提案 {code} において、社内で定めている値引きの上限は何パーセントか。"
+            "数値のみ答えよ。"
+        ),
+        # ── cross_file チャネル ──────────────────────────────
+        "cf_doc_title": "案件台帳（{code}）",
+        "cf_body": "案件コード {code} の契約金額は {amount} 円である。主管は{department}。",
+        "cf_summary_title": "案件シリーズ {series} 集計表",
+        "cf_summary_body": "本シリーズの契約金額合計は {amount} 円（{asof}時点の集計）。",
+        "q_cross_file": (
+            "案件シリーズ {series} に属する全案件（{first} 〜 {last}）の"
+            "契約金額の合計はいくらか。円単位の数値で答えよ。"
+        ),
     },
 )
 
@@ -234,6 +273,47 @@ EN = Locale(
             "the items whose status is 'Approved'? Answer as a number."
         ),
         "q_total": "What is the total including tax of quotation {code}? Answer as a number.",
+        # ── format ───────────────────────────────────────────
+        "fm_sheet": "Inspection log",
+        "fm_title": "{site} incoming inspection log ({code})",
+        "fm_h_id": "Record no.",
+        "fm_h_item": "Item",
+        "fm_h_value": "Measured",
+        "fm_h_spec": "Spec",
+        "fm_h_note": "Note",
+        "fm_note_flagged": "Re-inspection required",
+        "fm_note_decoy": "Under review",
+        "q_format": (
+            "In inspection log {code}, give the record number of the row whose "
+            "background is filled yellow."
+        ),
+        # ── hidden ───────────────────────────────────────────
+        "hd_title": "{project} proposal ({code})",
+        "hd_slide_overview": "Overview",
+        "hd_slide_price": "Quotation",
+        "hd_slide_schedule": "Schedule",
+        "hd_body_overview": "We propose the {project} at {site}.",
+        "hd_body_price": "Please refer to the separate quotation for details.",
+        "hd_body_schedule": "We expect roughly {months} months from start to completion.",
+        "hd_note_discount": (
+            "Internal note: the discount ceiling for this deal is {rate}%. "
+            "Anything beyond that needs director approval."
+        ),
+        "hd_body_discount_shown": "Planned discount: {rate}%",
+        "hd_body_discount_decoy": "For reference, the previous deal was discounted {rate}%.",
+        "q_hidden": (
+            "For proposal {code}, what is the internally agreed discount ceiling, "
+            "in percent? Answer with the number only."
+        ),
+        # ── cross_file ───────────────────────────────────────
+        "cf_doc_title": "Case record ({code})",
+        "cf_body": "The contract value of case {code} is {amount}. Owned by {department}.",
+        "cf_summary_title": "Case series {series} roll-up",
+        "cf_summary_body": "Total contract value for this series is {amount} (as of {asof}).",
+        "q_cross_file": (
+            "What is the combined contract value of every case in series {series} "
+            "({first} through {last})? Answer as a number."
+        ),
     },
 )
 
