@@ -196,6 +196,47 @@ JA = Locale(
         ),
         "sc_cover_decoy": "なお、前回ロット（{lot}）の判定は {judge} でした。",
         "q_scanned": "検査成績書 {code} のロット番号は何か。",
+        # ── chart_native チャネル ────────────────────────────
+        "cn_sheet_visible": "報告",
+        "cn_sheet_hidden": "_src",
+        "cn_title": "{period} 拠点別 稼働率（{code}）",
+        "cn_chart_title": "拠点別 稼働率",
+        "cn_note_caption": "グラフは下表の系列を参照している。",
+        "cn_note_order_decoy": "（掲載順: {order}）",
+        "cn_table_heading": "拠点別 稼働率（参考表）",
+        "q_chart_native": (
+            "稼働率報告 {code} のグラフにおいて、{month} に最も高い値を示した拠点はどこか。"
+        ),
+        # ── version チャネル ─────────────────────────────────
+        "vr_title": "{topic}規程（{code}）",
+        "vr_sec_purpose": "第1条 目的",
+        "vr_sec_scope": "第2条 適用範囲",
+        "vr_sec_warranty": "第3条 保証期間",
+        "vr_sec_misc": "第4条 雑則",
+        "vr_body_purpose": "本規程は{topic}に関する取扱いを定めるものである。",
+        "vr_body_scope": "本規程は当社が締結するすべての{topic}契約に適用する。",
+        "vr_body_warranty": "保証期間は引渡し日から{months}か月とする。",
+        "vr_body_misc": "本規程に定めのない事項は、別途協議のうえ定める。",
+        "vr_index_title": "規程集 目次（{code}）",
+        "vr_index_body": "{code} の内容は old/ 配下の版を参照のこと。",
+        "q_version": (
+            "{topic}規程 {code} の現行版において、保証期間は引渡し日から何か月か。"
+            "数値のみ答えよ。"
+        ),
+        # ── locked チャネル ──────────────────────────────────
+        "lk_archive_name": "settlement.txt",
+        "lk_archive_body": "{code} 精算確定額: {amount} 円（確定日 {date}）",
+        "lk_rule_title": "共有ファイルの取扱い（{code}）",
+        "lk_rule_body": (
+            "精算データは暗号化して共有する。パスワードは「拠点コード（大文字）+ "
+            "ハイフン + 確定日（YYYYMMDD）」とする。"
+        ),
+        "lk_ref_title": "{code} 案件基本情報",
+        "lk_ref_body": "拠点コード: {site_code} / 確定日: {date} / 主管: {department}",
+        "lk_cover_title": "{code} 精算のご連絡",
+        "lk_cover_body": "精算確定額は添付の暗号化ファイルをご確認ください。",
+        "lk_cover_decoy": "（参考: 速報値は {amount} 円でした）",
+        "q_locked": "{code} の精算確定額はいくらか。円単位の数値で答えよ。",
     },
 )
 
@@ -382,6 +423,48 @@ EN = Locale(
         ),
         "sc_cover_decoy": "Note that the previous lot ({lot}) was judged {judge}.",
         "q_scanned": "What is the lot number on inspection report {code}?",
+        # ── chart_native ─────────────────────────────────────
+        "cn_sheet_visible": "Report",
+        "cn_sheet_hidden": "_src",
+        "cn_title": "{period} utilisation by site ({code})",
+        "cn_chart_title": "Utilisation by site",
+        "cn_note_caption": "The chart plots the series in the table below.",
+        "cn_note_order_decoy": "(listed order: {order})",
+        "cn_table_heading": "Utilisation by site (reference table)",
+        "q_chart_native": (
+            "In the chart of utilisation report {code}, which site shows the highest "
+            "value in {month}?"
+        ),
+        # ── version ──────────────────────────────────────────
+        "vr_title": "{topic} policy ({code})",
+        "vr_sec_purpose": "Article 1 Purpose",
+        "vr_sec_scope": "Article 2 Scope",
+        "vr_sec_warranty": "Article 3 Warranty period",
+        "vr_sec_misc": "Article 4 Miscellaneous",
+        "vr_body_purpose": "This policy governs the handling of {topic}.",
+        "vr_body_scope": "This policy applies to every {topic} contract the company enters.",
+        "vr_body_warranty": "The warranty period is {months} months from the date of handover.",
+        "vr_body_misc": "Matters not covered here shall be agreed separately.",
+        "vr_index_title": "Policy index ({code})",
+        "vr_index_body": "For the content of {code}, refer to the edition under old/.",
+        "q_version": (
+            "In the current edition of {topic} policy {code}, how many months is the "
+            "warranty period from handover? Answer with the number only."
+        ),
+        # ── locked ───────────────────────────────────────────
+        "lk_archive_name": "settlement.txt",
+        "lk_archive_body": "{code} final settlement: {amount} (confirmed {date})",
+        "lk_rule_title": "Handling of shared files ({code})",
+        "lk_rule_body": (
+            "Settlement data is shared encrypted. The password is the site code in "
+            "upper case, a hyphen, then the confirmation date as YYYYMMDD."
+        ),
+        "lk_ref_title": "{code} case master data",
+        "lk_ref_body": "Site code: {site_code} / Confirmed: {date} / Owner: {department}",
+        "lk_cover_title": "{code} settlement notice",
+        "lk_cover_body": "Please see the attached encrypted file for the final settlement.",
+        "lk_cover_decoy": "(For reference, the preliminary figure was {amount}.)",
+        "q_locked": "What is the final settlement amount for {code}? Answer as a number.",
     },
 )
 
