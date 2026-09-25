@@ -1,0 +1,13 @@
+﻿arm,mode,channel,difficulty,total,correct,incorrect,answered,accuracy,penalized,answer_rate,precision,decoy_rate
+classical,abstain_ok,formula,1,36.0,36.0,0.0,36.0,1.0,1.0,1.0,1.0,
+classical,abstain_ok,formula,2,36.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,
+classical,abstain_ok,formula,3,36.0,5.0,20.0,25.0,0.1388888888888889,-0.4166666666666667,0.6944444444444444,0.2,0.5555555555555556
+classical,abstain_ok,text,1,54.0,54.0,0.0,54.0,1.0,1.0,1.0,1.0,
+classical,abstain_ok,text,2,36.0,36.0,0.0,36.0,1.0,1.0,1.0,1.0,
+classical,abstain_ok,text,3,18.0,18.0,0.0,18.0,1.0,1.0,1.0,1.0,
+classical,forced,formula,1,36.0,36.0,0.0,36.0,1.0,1.0,1.0,1.0,
+classical,forced,formula,2,36.0,0.0,35.0,35.0,0.0,-0.9722222222222222,0.9722222222222222,0.0,
+classical,forced,formula,3,36.0,9.0,27.0,36.0,0.25,-0.5,1.0,0.25,0.6111111111111112
+classical,forced,text,1,54.0,54.0,0.0,54.0,1.0,1.0,1.0,1.0,
+classical,forced,text,2,36.0,36.0,0.0,36.0,1.0,1.0,1.0,1.0,
+classical,forced,text,3,18.0,18.0,0.0,18.0,1.0,1.0,1.0,1.0,

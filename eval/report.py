@@ -9,11 +9,18 @@
     scaling.png           コーパス規模 × 正答率（P4 で複数 run が揃ってから）
 
 ★ **コスト軸の注意**:
-    Claude CLI は 1 呼出あたり固定のオーバーヘッド（実測 約4,300 トークン）を
+    Claude CLI は 1 呼出あたり固定のオーバーヘッド（システムプロンプト等）を
     乗せる。生のコストだけを見ると全アームが一律に水増しされ、アーム間の
     差が実際より小さく見える。そのため cost_accuracy.png は
     「生のコスト」と「オーバーヘッドを引いた実質プロンプトトークン」の
     2 枚組にしてある。どちらか片方だけを引用しないこと。
+
+    オーバーヘッドは**定数で持たない。run 自体のデータから推定する。**
+    単発で測った値を定数にすると外す（実測: 冷えたキャッシュでの 1 回の値は
+    4,327 だったが、432 回の run の平均 input_tokens は 3,131 で、
+    引くと負になった）。``input_tokens ≈ a + b×k`` を最小二乗で当て、
+    切片 a をオーバーヘッドとする。観測された最小 input_tokens が上限になる
+    ので、推定値がそれを超えたら最小値で頭打ちにする。
 
     また CLI 認証（契約プランの枠）で走らせた場合、``cost_usd`` は定価換算の
     参考値であって実請求額ではない。meta.json の ``auth`` を見て図に明記する。
@@ -32,10 +39,6 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
-
-# Claude CLI が 1 呼出ごとに乗せる固定オーバーヘッド（最小プロンプトで実測）。
-# 環境やバージョンで変わるので、変えたら図の注記も変えること。
-CLI_OVERHEAD_TOKENS = 4327
 
 # 日本語を出せるフォント候補。見つからなければ英語ラベルに落とす。
 _CJK_FONTS = ("Yu Gothic", "Meiryo", "MS Gothic", "Noto Sans CJK JP", "IPAexGothic")
@@ -122,7 +125,23 @@ def channel_heatmap(frame: pd.DataFrame, out: Path, lab: Labels, mode: str) -> P
 
 
 # ── 2. コスト × 正答率 ─────────────────────────────────────────────
+def estimate_cli_overhead(frame: pd.DataFrame) -> int:
+    """1 呼出あたりの固定オーバーヘッドを run 自体から推定する。
+
+    ``input_tokens ≈ a + b×k`` の切片 a を採る。k が 1 種類しかない run では
+    回帰できないので、観測された最小 input_tokens を上限として使う。
+    """
+    observed_min = int(frame["input_tokens"].min())
+    if frame["k"].nunique() < 2:
+        return observed_min
+    slope, intercept = np.polyfit(
+        frame["k"].to_numpy(float), frame["input_tokens"].to_numpy(float), 1
+    )
+    return int(max(0, min(intercept, observed_min)))
+
+
 def cost_accuracy(frame: pd.DataFrame, out: Path, lab: Labels, auth: str) -> Path:
+    overhead = estimate_cli_overhead(frame)
     grouped = (
         frame.groupby(["arm", "channel", "k"])
         .agg(
@@ -132,7 +151,7 @@ def cost_accuracy(frame: pd.DataFrame, out: Path, lab: Labels, auth: str) -> Pat
         )
         .reset_index()
     )
-    grouped["marginal_tokens"] = (grouped["input_tokens"] - CLI_OVERHEAD_TOKENS).clip(lower=1)
+    grouped["marginal_tokens"] = (grouped["input_tokens"] - overhead).clip(lower=1)
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
     channels = sorted(grouped["channel"].unique())
@@ -177,10 +196,10 @@ def cost_accuracy(frame: pd.DataFrame, out: Path, lab: Labels, auth: str) -> Pat
         ax.legend()
 
     note = lab(
-        f"左は生のコスト。CLI が 1 呼出あたり約 {CLI_OVERHEAD_TOKENS:,} トークンの"
-        f"固定オーバーヘッドを乗せるため、右にそれを引いた値も示す。",
-        f"Left is raw cost. The CLI adds a fixed ~{CLI_OVERHEAD_TOKENS:,} token overhead "
-        f"per call, so the right panel subtracts it.",
+        f"左は生のコスト。CLI が 1 呼出あたり乗せる固定オーバーヘッドを"
+        f"この run から推定すると約 {overhead:,} トークン。右はそれを引いた値。",
+        f"Left is raw cost. The fixed per-call overhead estimated from this run is "
+        f"~{overhead:,} tokens; the right panel subtracts it.",
     )
     if auth == "cli":
         note += lab(
@@ -222,6 +241,8 @@ def write_markdown(run: Path, frame: pd.DataFrame, meta: dict, figures: list[Pat
         ),
         f"- アーム: {', '.join(meta.get('arms', []))}",
         f"- k: {meta.get('k_values')}  モード: {meta.get('modes')}  反復: {meta.get('repeats')}",
+        f"- CLI の固定オーバーヘッド（この run から推定）: "
+        f"**{estimate_cli_overhead(frame):,} トークン/呼出**",
         "",
         "### 索引の構成",
         "",

@@ -1,0 +1,5 @@
+﻿arm,mode,channel,k,total,correct,incorrect,answered,accuracy,penalized,answer_rate,precision,decoy_rate
+classical,abstain_ok,formula,8,36.0,15.0,8.0,23.0,0.4166666666666667,0.19444444444444445,0.6388888888888888,0.6521739130434783,0.6666666666666666
+classical,abstain_ok,text,4,36.0,36.0,0.0,36.0,1.0,1.0,1.0,1.0,
+classical,forced,formula,4,36.0,16.0,19.0,35.0,0.4444444444444444,-0.08333333333333333,0.9722222222222222,0.45714285714285713,0.3333333333333333
+classical,forced,text,4,36.0,36.0,0.0,36.0,1.0,1.0,1.0,1.0,

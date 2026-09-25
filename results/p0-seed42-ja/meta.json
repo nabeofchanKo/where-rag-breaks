@@ -40,5 +40,7 @@
       "retrieval": "bm25 + dense (RRF)",
       "reranker": null
     }
-  }
+  },
+  "finished_at": "2026-09-25T08:28:31.151034+00:00",
+  "executed_calls": 432
 }
