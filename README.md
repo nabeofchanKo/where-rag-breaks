@@ -4,8 +4,8 @@
 >
 > A benchmark that measures **which information channels break classical RAG** (chunk + embed + top-k), using a synthetic corpus with automatically-derived ground truth.
 
-**ステータス / Status: P0 作業中。図3枚はまだ出ていません。**
-**現時点の測定は「検索プローブ」（LLM 未使用）のみ / So far only the retrieval probe (no LLM) has been run.**
+**ステータス / Status: P0 完了（`text` `formula` の2チャネル + Arm A）。残り9チャネルと Arm B/C は未着手。**
+**Status: P0 done (2 channels + Arm A). The other 9 channels and Arms B/C are not built yet.**
 
 ---
 
@@ -30,6 +30,56 @@
 | **C `hybrid`** | 両方 | A でファイル候補を絞ってから B |
 
 11の情報チャネル: `text` `format` `formula` `chart_only` `chart_native` `scanned` `layout` `version` `cross_file` `hidden` `locked`
+
+### Arm A の測定結果（P0）
+
+![channel_heatmap](results/p0-seed42-ja/figures/channel_heatmap.png)
+
+432呼出（24問 × k{4,8,16} × 棄権2モード × N=3）、`claude-sonnet-5`、
+BM25 + BGE-m3 の RRF 融合。全文は
+[`results/p0-seed42-ja/report.md`](results/p0-seed42-ja/report.md)。
+
+**強制回答モード（棄権なし）**
+
+| チャネル | 難易度（罠の機構） | accuracy | penalized | decoy_rate |
+|---|---|---|---|---|
+| `text` | 1–3 | **1.000** | +1.000 | — |
+| `formula` | 1 コントロール | **1.000** | +1.000 | — |
+| `formula` | 2 k の窓超え | **0.000** | **−0.972** | — |
+| `formula` | 3 キャッシュ陳腐化 | 0.250 | −0.500 | **0.611** |
+
+- **H1 は支持された。** `text` は全難易度で 1.000。古典的RAGが得意なはずの場所で得意。
+- **H2 は支持された。** ただし**難易度1 が 1.000 のまま**であることが重要で、
+  罠を積み上げて baseline を潰したのではないことの証拠になる。
+- `formula` 全体の `penalized` は **−0.157**。正答より誤答が多い。
+
+**気づける損失と、気づけない損失**
+
+棄権を許すと、2つの罠の性質がはっきり分かれる。
+
+| 難易度 | 答えの状態 | answer_rate | penalized | decoy_rate |
+|---|---|---|---|---|
+| 2 | **無い**（窓に入らない） | **0.000** | 0.000 | — |
+| 3 | **あるが古い** | 0.694 | **−0.417** | **0.556** |
+
+**答えが欠けているときは気づいて棄権する。答えが「あるが古い」ときは気づかず、
+半分以上その古い値を答える。** 危険なのは後者である。
+古典的RAGの問題は「答えられないこと」ではなく、
+**壊れたことに気づけないまま答えてしまうこと**だという主張が、数字として出た。
+
+**採点の内訳（開示）**
+
+- LLM judge が exact match を覆した: **14件**（「大阪支社」対「大阪支社構内」等の表記揺れ）
+- 囮に一致したため judge にかけなかった: **42件**（囮の実体は4種）。
+  ガードが不当に不利にしていないか検証するため4種すべてを judge にかけたところ、
+  **4/4 で judge も「不正解」**。このガードは採点を1件も変えていない
+- 棄権フラグを立てずに本文で「算出不可」と答えた: **18件**。
+  契約どおり誤答として採点しており、`penalized` はそのぶん実態より低い
+- 事後の採点基準変更はすべて
+  [`docs/scoring-changes.md`](docs/scoring-changes.md) に記録
+
+**検証可能性**: `tool_results` 合計 **0**、`num_turns != 1` の呼出 **0**。
+Arm A が「ツールなしで LLM を1回呼ぶ」定義どおりに動いたことが結果から確認できる。
 
 ### 一度反証された話（このリポジトリの作り方そのもの）
 
@@ -188,6 +238,58 @@ Three implementations run over the same corpus with the same model. Accuracy and
 | **C `hybrid`** | both | A narrows the file candidates, then B |
 
 Eleven channels: `text` `format` `formula` `chart_only` `chart_native` `scanned` `layout` `version` `cross_file` `hidden` `locked`
+
+### Arm A results (P0)
+
+![channel_heatmap](results/p0-seed42-ja/figures/channel_heatmap.png)
+
+432 calls (24 questions x k{4,8,16} x 2 abstention modes x N=3), `claude-sonnet-5`,
+BM25 + BGE-m3 fused with RRF. Full write-up in
+[`results/p0-seed42-ja/report.md`](results/p0-seed42-ja/report.md).
+
+**Forced mode (abstention not permitted)**
+
+| Channel | Tier (trap mechanism) | accuracy | penalized | decoy_rate |
+|---|---|---|---|---|
+| `text` | 1–3 | **1.000** | +1.000 | — |
+| `formula` | 1 control | **1.000** | +1.000 | — |
+| `formula` | 2 window overflow | **0.000** | **−0.972** | — |
+| `formula` | 3 stale cache | 0.250 | −0.500 | **0.611** |
+
+- **H1 holds.** `text` is 1.000 at every tier — classical RAG is strong where it
+  should be strong.
+- **H2 holds.** Crucially **tier 1 stays at 1.000**, which is the evidence that the
+  baseline was not simply buried under stacked traps.
+- `formula` overall lands at **−0.157** penalized: more wrong answers than right ones.
+
+**Detectable loss versus undetectable loss**
+
+Allowing abstention separates the two traps sharply.
+
+| Tier | State of the answer | answer_rate | penalized | decoy_rate |
+|---|---|---|---|---|
+| 2 | **absent** (does not fit the window) | **0.000** | 0.000 | — |
+| 3 | **present but stale** | 0.694 | **−0.417** | **0.556** |
+
+**When the answer is missing, the pipeline notices and abstains. When the answer is
+present but stale, it does not notice, and more than half the time it reports the
+stale value.** The second case is the dangerous one. The problem with classical RAG
+is not that it cannot answer — it is that **it cannot tell when it has been broken**.
+
+**Scoring disclosure**
+
+- LLM judge overrode exact match **14 times** (surface variants such as "Osaka Branch"
+  versus "the premises of Osaka Branch")
+- **42 answers** matched a decoy and skipped the judge (4 distinct decoys). To check
+  the guard was not unfairly penalising the arm, all four were put through the judge
+  anyway: **4/4 rejected**. The guard changed no scores
+- **18 answers** refused in prose while leaving `abstained` false. They are scored as
+  wrong per the output contract, so `penalized` is lower than reality by that much
+- Every post-hoc change to the scoring basis is logged in
+  [`docs/scoring-changes.md`](docs/scoring-changes.md)
+
+**Verifiability**: total `tool_results` **0**, calls with `num_turns != 1` **0** — the
+"no tools, one invoke" definition of Arm A is checkable from the results.
 
 ### The part that got falsified (and why that matters)
 
