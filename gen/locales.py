@@ -97,6 +97,7 @@ JA = Locale(
         "q_engineer": "案件コード {code} で技術的な照会に対応するのは誰か。氏名を答えよ。",
         "q_department": "案件コード {code} の主管部署はどこか。",
         "q_site": "案件コード {code} の作業を実施する場所はどこか。",
+        "site_premises": "{site}構内",
         "q_end": "案件コード {code} の完了予定日はいつか。YYYY-MM-DD 形式で答えよ。",
         "q_approver": (
             "案件コード {code} で支出決裁の承認を行うのはどの部署の長か。部署名を答えよ。"
@@ -200,6 +201,7 @@ EN = Locale(
         "q_engineer": "Who answers technical enquiries for project code {code}? Give the name.",
         "q_department": "Which department is responsible for project code {code}?",
         "q_site": "At which location is the work for project code {code} carried out?",
+        "site_premises": "the premises of {site}",
         "q_end": (
             "What is the scheduled completion date of project code {code}? "
             "Answer as YYYY-MM-DD."

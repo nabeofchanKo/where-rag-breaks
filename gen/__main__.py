@@ -26,7 +26,7 @@ from gen.locales import get_locale
 
 # コーパスの形式を変える変更を入れたら上げる。meta.json に記録され、
 # 「同じ seed なのに中身が違う」の原因追跡に使う。
-GENERATOR_VERSION = 1
+GENERATOR_VERSION = 2
 
 DEFAULT_QUESTIONS_PER_CHANNEL = 6
 

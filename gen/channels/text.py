@@ -136,6 +136,13 @@ def generate(
             answer = facts[field]
             # 日本語の氏名は文書中では姓名の間に空白がある。空白なしも受理する。
             aliases = [answer.replace(" ", "")] if " " in answer else []
+            if field == "site":
+                # 作業範囲の節が「作業範囲は{site}構内に限る」と書いているため、
+                # モデルは「{site}構内」と答える。場所としては同一なので受理する。
+                # ★ これは結果を見たあとに追加した alias である。
+                #   経緯と、追加前後の run を比較してはいけない旨は
+                #   docs/scoring-changes.md に記載してある（SPEC §11）。
+                aliases.append(locale.fmt("site_premises", site=answer))
 
         items.append(
             Item(
