@@ -31,37 +31,68 @@
 
 11の情報チャネル: `text` `format` `formula` `chart_only` `chart_native` `scanned` `layout` `version` `cross_file` `hidden` `locked`
 
+### 一度反証された話（このリポジトリの作り方そのもの）
+
+`formula` チャネルの初版は「合計値をファイルのどこにも書かない」という罠だった。
+**Arm A はこれを 10/10 で突破した。** SPEC §2 が定める反証条件そのものである。
+
+原因は Arm A の手抜きではなかった。モデルは数式を読んで意味を理解し、数量×単価を
+12行ぶん計算し、別シートの税率を掛けて正解していた。全問をソースファイルから
+独立に再計算して照合済みで、採点バグでもない。
+
+**集計結果だけを隠しても、入力が読める形で残っていれば現代のモデルは再計算する。**
+かといって抽出器から数式を落とせば H2 は「成立」するが、それは SPEC §4-1 が禁じる
+「抽出器に意図的な穴」であり、禁止されている勝ち方である。
+
+そこで難易度の軸を「計算の複雑さ」から「**何が抽出不能か**」へ組み替えた。
+
+| 難易度 | 罠の機構 |
+|---|---|
+| 1 | 初版のまま。**コントロールとして意図的に残している**（罠を積んだだけではないことを示すため） |
+| 2 | 明細を 240〜320 行にし、入力が top-k の窓に入らないようにする |
+| 3 | サマリの数式セルに旧版から計算した**陳腐化したキャッシュ値**を注入する |
+
+経緯は [PR #1 のコメント](https://github.com/nabeofchanKo/where-rag-breaks/pull/1#issuecomment-5826732933)
+に測定値つきで残してある。**反証されたら仕様を直す。結果に合わせて評価を曲げない。**
+
 ### 現時点でわかっていること（検索プローブ・LLM 未使用）
 
 LLM を呼ぶ前に、**検索側だけ**を切り出して測れる。課金ゼロで完全に決定的なので、
 チャネル設計が効いているかをここで先に確認する。
 
-`--seed 42 --files 120 --questions 10`（日本語コーパス、120ファイル、540チャンク、
+`--seed 42 --files 120 --questions 12`（日本語コーパス、120ファイル、960チャンク、
 BM25 + BGE-m3 の RRF 融合）:
 
-| チャネル | k | file_recall | answer_literal | answer_literal_corpus |
-|---|---|---|---|---|
-| `text` | 4 / 8 / 16 / 32 | 1.000 | 1.000 | 1.000 |
-| `formula` | 4 / 8 / 16 / 32 | **1.000** | **0.000** | **0.000** |
+| チャネル | 難易度 | k | file_recall | source_coverage | answer_literal | decoy_literal |
+|---|---|---|---|---|---|---|
+| `text` | 1–3 | 4〜32 | 1.000 | 0.21–0.56 | **1.000** | 0.000 |
+| `formula` | 1 (control) | 4〜32 | 1.000 | 0.667 | 0.000 | 0.000 |
+| `formula` | 2 (窓超え) | 4 → 32 | 1.000 | **0.136 → 0.374** | 0.000 | 0.000 |
+| `formula` | 3 (陳腐化) | 4〜32 | 1.000 | 0.667 | 0.000 | **1.000** |
 
 - `file_recall` … 上位 k に答えのあるファイルが入った割合
+- `source_coverage` … 対象ファイルのチャンクのうち窓に入った割合
 - `answer_literal` … 上位 k の本文に正解文字列がそのまま現れた割合
-- `answer_literal_corpus` … コーパス全体の抽出テキストに現れる割合（k 非依存）
+- `decoy_literal` … 囮（陳腐化した値）が窓に入った割合
 
-読み方: **`formula` は検索が失敗しているのではない。** 正しいファイルは k=4 で
-100% 引けている。それでも答えが手に入らないのは、抽出テキストのどこにも
-答えが存在しないから。k を 32 に上げても、コーパス全体を見ても 0%。
-これが「チャンク化の時点で落ちる」ということの、検索側から見た姿である。
+読み方:
+
+- **どのチャネルも検索は失敗していない。** `file_recall` は全条件で 1.000。正しい
+  ファイルは k=4 で確実に引けている。
+- **難易度2 は窓が足りない。** 対象ファイルは 20〜24 チャンクあるのに、k=32 まで
+  上げても 37% しか載らない。明細全体は原理的に見えない。
+- **難易度3 は囮だけが見えている。** 正解は 0%、陳腐化した値は 100% 窓に入る。
+  値を読んだだけのパイプラインは、もっともらしく整合した古い数字を掴む。
 
 > ⚠️ **この数字を過大に読まないこと。** `answer_literal` が 0 でも、モデルが
-> 数量と単価から**計算で導ける**可能性は残る。これは「答えがそのままの形では
-> 存在しない」ことの証拠であって、「答えられない」ことの証明ではない。
-> 実際の正答率は Arm A を走らせて測る。
+> 計算で導ける可能性は残る（実際、難易度1 はそれで突破された）。これは
+> 「答えがそのままの形では存在しない」ことの証拠であって、「答えられない」ことの
+> 証明ではない。実際の正答率は Arm A を走らせて測る。
 
 再現:
 
 ```bash
-uv run python -m gen --seed 42 --files 120 --questions 10 --out corpus/
+uv run python -m gen --seed 42 --files 120 --questions 12 --out corpus/
 uv run python -m eval.retrieval_probe --corpus corpus/ --k 4,8,16,32
 ```
 
@@ -152,38 +183,74 @@ Three implementations run over the same corpus with the same model. Accuracy and
 
 Eleven channels: `text` `format` `formula` `chart_only` `chart_native` `scanned` `layout` `version` `cross_file` `hidden` `locked`
 
+### The part that got falsified (and why that matters)
+
+The first version of the `formula` channel hid only one thing: the total was
+written nowhere in the file. **Arm A scored 10/10 against it** — precisely the
+falsification condition SPEC section 2 lays out.
+
+The cause was not a lazy Arm A. The model read the formulas, multiplied quantity by
+unit price across twelve rows, and pulled the tax rate from another sheet. Every
+answer was re-derived independently from the source workbooks, so it was not a
+scoring bug either.
+
+**Hiding the aggregate is not enough when the inputs remain readable; a modern model
+just recomputes.** Stripping formulas out of the extractor would "restore" H2, but
+that is the deliberate hole SPEC section 4-1 forbids — a win that does not count.
+
+So the difficulty axis moved from "how hard is the arithmetic" to "what cannot be
+extracted at all":
+
+| Tier | Trap mechanism |
+|---|---|
+| 1 | unchanged, **kept on purpose as a control** — evidence that traps were not simply stacked until the baseline lost |
+| 2 | the detail sheet grows to 240–320 rows, so the inputs cannot fit in the top-k window |
+| 3 | **stale cached values** computed from a previous revision are injected into the summary's formula cells |
+
+The full write-up with measurements lives in
+[the PR #1 comment](https://github.com/nabeofchanKo/where-rag-breaks/pull/1#issuecomment-5826732933).
+**When the design is falsified, fix the design — never bend the evaluation to fit the result.**
+
 ### What we know so far (retrieval probe, no LLM)
 
 The retrieval side can be measured on its own, before any LLM is involved. It costs
 nothing and is fully deterministic, which makes it the right place to check whether
 the channel design actually bites.
 
-`--seed 42 --files 120 --questions 10` (Japanese corpus, 120 files, 540 chunks,
+`--seed 42 --files 120 --questions 12` (Japanese corpus, 120 files, 960 chunks,
 BM25 + BGE-m3 fused with RRF):
 
-| Channel | k | file_recall | answer_literal | answer_literal_corpus |
-|---|---|---|---|---|
-| `text` | 4 / 8 / 16 / 32 | 1.000 | 1.000 | 1.000 |
-| `formula` | 4 / 8 / 16 / 32 | **1.000** | **0.000** | **0.000** |
+| Channel | Tier | k | file_recall | source_coverage | answer_literal | decoy_literal |
+|---|---|---|---|---|---|---|
+| `text` | 1–3 | 4–32 | 1.000 | 0.21–0.56 | **1.000** | 0.000 |
+| `formula` | 1 (control) | 4–32 | 1.000 | 0.667 | 0.000 | 0.000 |
+| `formula` | 2 (window) | 4 → 32 | 1.000 | **0.136 → 0.374** | 0.000 | 0.000 |
+| `formula` | 3 (stale) | 4–32 | 1.000 | 0.667 | 0.000 | **1.000** |
 
-- `file_recall` — a chunk from a file that holds the answer made it into the top k
+- `file_recall` — a chunk from a file holding the answer made it into the top k
+- `source_coverage` — share of the target file's chunks that fit in the window
 - `answer_literal` — the answer string appears verbatim in the retrieved text
-- `answer_literal_corpus` — it appears anywhere in the extracted corpus (k-independent)
+- `decoy_literal` — the decoy (the stale value) is inside the window
 
-How to read it: **`formula` is not a retrieval failure.** The right file is retrieved
-100% of the time at k=4. The answer is still unavailable because it exists nowhere in
-the extracted text — not at k=32, not across the whole corpus. That is what "dropped
-at chunking time" looks like from the retrieval side.
+How to read it:
 
-> ⚠️ **Do not over-read this.** `answer_literal` of 0 leaves open that the model can
-> still *derive* the answer from the quantities and unit prices. This is evidence that
-> the answer does not exist in literal form, not proof that it cannot be answered.
-> Actual accuracy requires running Arm A.
+- **Retrieval never fails.** `file_recall` is 1.000 everywhere; the right file is
+  found reliably at k=4.
+- **Tier 2 is a window problem.** The target file is 20–24 chunks; even at k=32 only
+  37% of it fits. The full line-item table is unreachable by construction.
+- **Tier 3 shows only the decoy.** The answer is never visible, the stale value always
+  is. A pipeline that reads values picks up a plausible, internally consistent, wrong
+  number.
+
+> ⚠️ **Do not over-read this.** `answer_literal` of 0 still leaves room for the model
+> to *derive* the answer — tier 1 was beaten exactly that way. This is evidence the
+> answer does not exist in literal form, not proof that it cannot be answered. Actual
+> accuracy requires running Arm A.
 
 Reproduce:
 
 ```bash
-uv run python -m gen --seed 42 --files 120 --questions 10 --out corpus/
+uv run python -m gen --seed 42 --files 120 --questions 12 --out corpus/
 uv run python -m eval.retrieval_probe --corpus corpus/ --k 4,8,16,32
 ```
 

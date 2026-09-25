@@ -1,0 +1,44 @@
+{
+  "run_id": "p0-seed42-ja",
+  "started_at": "2026-09-25T04:52:02.220747+00:00",
+  "corpus": {
+    "channels": [
+      "formula",
+      "text"
+    ],
+    "generator_version": 1,
+    "locale": "ja",
+    "n_files_requested": 120,
+    "n_files_written": 120,
+    "n_filler_files": 96,
+    "n_questions": 24,
+    "questions_per_channel": 12,
+    "seed": 42
+  },
+  "model": "claude-sonnet-5",
+  "auth": "cli",
+  "arms": [
+    "classical"
+  ],
+  "k_values": [
+    4,
+    8,
+    16
+  ],
+  "modes": [
+    "forced",
+    "abstain_ok"
+  ],
+  "repeats": 3,
+  "n_questions": 24,
+  "arm_config": {
+    "classical": {
+      "n_chunks": 960,
+      "chunk_chars": 1200,
+      "overlap_chars": 200,
+      "embedding_model": "BAAI/bge-m3",
+      "retrieval": "bm25 + dense (RRF)",
+      "reranker": null
+    }
+  }
+}

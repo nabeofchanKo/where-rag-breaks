@@ -76,15 +76,22 @@ def probe(
     index = HybridIndex(chunks, meta["locale"])
 
     corpus_text = "\n".join(c.text for c in chunks)
+    source_chunks = {
+        item.qid: sum(1 for c in chunks if c.path in set(item.source_files)) for item in items
+    }
 
     rows: list[dict] = []
     for item in items:
         in_corpus = _contains_answer(item, corpus_text)
         sources = set(item.source_files)
+        total_source_chunks = source_chunks[item.qid]
         for k in ks:
             hits = index.search(item.question, k)
             retrieved_text = "\n".join(h.chunk.text for h in hits)
             hit_paths = {h.chunk.path for h in hits}
+            # 対象ファイルのチャンクのうち、何個が窓に入ったか。
+            # 難易度2（k の窓超え）が効いているかはこの値で分かる。
+            in_window = sum(1 for h in hits if h.chunk.path in sources)
             rows.append(
                 {
                     "qid": item.qid,
@@ -92,8 +99,16 @@ def probe(
                     "difficulty": item.difficulty,
                     "k": k,
                     "file_recall": bool(sources & hit_paths),
+                    "source_chunks_total": total_source_chunks,
+                    "source_chunks_in_window": in_window,
+                    "source_coverage": (
+                        in_window / total_source_chunks
+                        if total_source_chunks
+                        else float("nan")
+                    ),
                     "answer_literal": _contains_answer(item, retrieved_text),
                     "answer_literal_corpus": in_corpus,
+                    "decoy_literal": _contains_decoy(item, retrieved_text),
                     "top1_path": hits[0].chunk.path if hits else "",
                 }
             )
