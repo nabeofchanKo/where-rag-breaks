@@ -1,0 +1,323 @@
+# where-rag-breaks — 仕様書
+
+> このファイルの使い方: **新しい空のリポジトリに置き、Claude に「この仕様書に従って実装して」と投げる**ための自己完結仕様。
+> 読み手は前提知識ゼロを想定している（前プロジェクトの文脈を知らなくても実装できる）。
+> 作成: 2026-09-25
+
+---
+
+## 0. 一行で
+
+**古典的RAG（chunk + embed + top-k）が「どの情報チャネルで壊れるか」を、正解ラベルつきの合成コーパスで測るベンチマーク。**
+同じコーパス・同じモデルで、classical / agentic / hybrid の3実装を走らせ、チャネル別の正答率とコストを出す。
+
+---
+
+## 1. 背景（なぜ作るか）
+
+実務的な文書QAタスクでは、答えが**本文テキスト以外のチャネル**に入っていることが多い。セルの塗り色、数式、グラフの中の数値、スキャンPDF、図の空間配置、版の差分、複数ファイルの合計、発表者ノート、パスワード付きファイル。
+
+古典的RAGはこれらを**チャンク化の時点で落とす**。落ちたことに気づく仕組みもない。結果、モデルは与えられたチャンクから自信満々に間違える。
+
+実測の裏づけ（筆者が別タスクで計測した値・このリポジトリとは独立）:
+
+| ルート | 回答数 | 正 | 誤 | 純スコア（正 − 誤） |
+|---|---|---|---|---|
+| ベクトル検索 → LLM 1回 | 30 | 10 | 20 | **−11** |
+| ファイル直読（決定的抽出） | — | — | — | **+15** |
+
+同じコーパス・同じモデル・同じ日の計測。違いは「チャンクを読んだか、ファイルを読んだか」だけ。
+
+このリポジトリは、この現象を**誰でも再現できる形**で示す。合成コーパスなので正解ラベルが自動で手に入り、罠の種類と難易度を設計できる。
+
+---
+
+## 2. 主張と反証条件
+
+**H1**: `text` チャネルでは classical ≈ agentic（コストは classical が圧勝）。
+**H2**: `formula` / `chart_only` / `scanned` / `layout` / `version` / `cross_file` / `hidden` / `locked` では classical の正答率が著しく落ちる。
+**H3**: hybrid（ベクトル検索でファイルを絞ってからエージェント）は、コーパスが大きくなるほど agentic 単体より有利になる。破綻点が存在する。
+
+**反証条件（これが起きたら設計が間違っている）**:
+- classical が `formula` や `cross_file` で高い正答率を出す → 罠の設計が甘い、または classical の実装が仕様を超えている
+- agentic が `text` で classical より低い → エージェント実装にバグがある
+- 3アームの差が全チャネルで一様 → チャネル設計が効いていない
+
+★ **反証されたら仕様を直す。結果に合わせて評価を曲げない。**
+
+---
+
+## 3. コーパス設計
+
+### 3-1. 情報チャネル一覧
+
+各チャネルは「答えがどこにあるか」で定義する。1チャネル = 1つの生成器モジュール。
+
+| # | id | 答えの所在 | 生成方法 | classical の想定 |
+|---|---|---|---|---|
+| 1 | `text` | 本文の段落 | .docx に事実文を書く | ⭕ ベースライン |
+| 2 | `format` | セル塗り色 / 文字色 / 太字 | .xlsx の特定行を塗る。値自体は手がかりにならない | 🔺 |
+| 3 | `formula` | 数式とその参照範囲 | .xlsx にセル数式。合計値はどこにも書かない | ❌ |
+| 4 | `chart_only` | グラフ画像の中の数値 | matplotlib で PNG 生成 → .pptx/.docx に埋め込み。数値はテキストに存在しない | ❌ |
+| 5 | `chart_native` | ネイティブchartの参照先（非表示シート） | openpyxl で chart を作り、系列を**非表示シート**の範囲に向ける | ❌ |
+| 6 | `scanned` | 画像PDF（テキスト層なし） | PDF生成 → 各ページをラスタライズ → 画像のみのPDFを再構成 | ❌ |
+| 7 | `layout` | 図形の空間関係 | PIL で座席図/配置図を既知座標で描画。傾け（等角風）オプションあり | ❌ |
+| 8 | `version` | 旧版と新版の実質差分 | `old/` と `current/` に同名ファイル。体裁変更 N 件 + 実質変更 M 件 | ❌ |
+| 9 | `cross_file` | N ファイルにまたがる集計 | 案件フォルダ10個に各1数値。合計/最大/件数を問う | ❌ kの窓に入らない |
+| 10 | `hidden` | 発表者ノート / docxコメント | .pptx の notes に答えを置く | ❌ |
+| 11 | `locked` | パスワード付きファイルの中身 | 暗号化ファイル + **パスワード規則を別文書に記載** | ❌ |
+
+### 3-2. 設問の作り方
+
+- **1チャネルあたり最低 6 問**（初期は 6、最終 10）。全体 60〜110 問。
+- 設問文は**チャネル名を漏らさない**。「黄色く塗られた行は？」は可だが「format チャネルの問題です」は不可。
+- 答えは**短い**（数値・識別子・固有名・短い列挙）。自由記述は採点が揺れるので最小限に。
+- 答えの型を `answer_type` で持つ: `number` / `identifier` / `name` / `list` / `text`。
+
+### 3-3. 生成器の契約（重要）
+
+各チャネル生成器は次のシグネチャに従う。
+
+```python
+def generate(rng: random.Random, outdir: Path, n_questions: int) -> list[Item]
+
+@dataclass
+class Item:
+    qid: str              # 例 "formula-03"
+    channel: str
+    question: str
+    answer: str           # 正規化前の正解文字列
+    answer_type: str
+    answer_aliases: list[str]   # 許容表記（"1,320" と "1320" など）
+    source_files: list[str]     # 答えが実際に入っているファイル（診断用・アームには渡さない）
+    difficulty: int             # 1-3
+```
+
+**規律**:
+- `rng` は外から注入。**同じ seed なら同じコーパスと同じ正解**（バイト一致を CI で検証）
+- 正解は**生成時に確定した値をそのまま返す**。生成後にファイルを読み直して正解を作らない（読み直しのバグが正解に混入する）
+- ★ **答えをファイル名・フォルダ名・カタログ要約に漏らさない**。漏洩検査を `eval/leak_check.py` で自動化する
+
+### 3-4. ★ LibreOffice 不要の設計
+
+Office ファイルを画像に変換するには通常 LibreOffice が要るが、**生成側では不要**にできる。
+
+> **画像は先に PIL / matplotlib で作り、それを Office ファイルに埋め込む。** Office ファイルをレンダリングする必要が一度もない。
+
+- `chart_only` → matplotlib で PNG → python-pptx / python-docx で埋め込み
+- `layout` → PIL で描画 → PNG をそのまま配置
+- `scanned` → PyMuPDF (fitz) で PDF を作り、`page.get_pixmap()` でラスタライズし、画像のみの PDF を再構成
+
+解答側（Arm B）が Office をレンダリングしたくなる場合だけ LibreOffice が要る。**チャネル設計上は不要**なので、初期は入れずに進めてよい。
+
+### 3-5. 既知のツーリングリスク
+
+| 項目 | リスク | 対処 |
+|---|---|---|
+| xlsx のキャッシュ済み計算値 | openpyxl が書いた数式には**キャッシュ値が無い**（`data_only=True` で `None`）。「古い表示値」の罠はそのままでは作れない | **既定**: 数式と参照範囲だけを罠にする（合計値はどこにも書かない）。**変種**: シートXMLに `<v>` を後処理で注入して陳腐化した値を作る |
+| docx コメント | python-docx にコメント追加APIが無い。`word/comments.xml` の直接編集が必要 | `hidden` チャネルは **pptx の発表者ノートを既定**にする。docxコメントは後回しの変種 |
+| xlsx の暗号化 | msoffcrypto-tool の暗号化サポートを要検証 | 動かなければ **pyzipper の AES zip** に退避。「パスワード規則が別文書にある」構造は変わらない |
+| ネイティブchartのnumCache | openpyxl が作る chart にキャッシュは入らない | `chart_native` は「系列が**非表示シート**を参照する」構造にする（テキスト抽出に出ない点は同じ） |
+
+---
+
+## 4. 3つのアーム
+
+### 4-1. ★ 大原則 — Arm A を steel-man すること
+
+**このベンチマークの信頼性は、古典的RAGを本気で作ったかどうかで決まる。**
+手を抜いた baseline を叩いても誰も納得しない。Arm A には以下を入れる。
+
+- 妥当なチャンク戦略（構造を見た分割、サイズと overlap はパラメータ化）
+- **hybrid retrieval（BM25 + dense）** — dense 単体にしない
+- reranker（オプションだが、入れた場合は必ず結果に明記）
+- `k` をスイープして**チャネルごとの最良 k** で評価する（k=5 固定で殴らない）
+- 抽出は「実務で普通にやる範囲」: python-docx のテキスト、openpyxl の値、pypdf/pdfplumber のテキスト、python-pptx の図形テキスト
+
+★ **Arm A が「ちゃんと作った上で落ちる」ことを示すのが目的。** 抽出器に意図的な穴を作らない。落ちるのは構造的理由であるべきで、実装の手抜きであってはならない。
+
+### 4-2. Arm 仕様
+
+| | Arm A `classical` | Arm B `agentic` | Arm C `hybrid` |
+|---|---|---|---|
+| 索引 | チャンク + 埋め込み + BM25 | カタログ（1ファイル1行）+ Markdown ミラー | 両方 |
+| 検索 | top-k（スイープ） | モデルが catalog を読み、`grep`/`ls`/`read` で自分で探す | A で**ファイル候補**を N 件に絞る → その範囲で B |
+| LLM 呼出 | 1回 | 1 invoke（内部で複数ツール呼出） | 1 invoke |
+| ツール | なし | `list_files` / `read_file` / `grep` / `run_python` / `view_image` | 同左（対象ファイルが限定される） |
+| 出力 | JSON | JSON | JSON |
+
+**Arm B のハーネス**: 非対話でエージェントを1回呼ぶ形なら何でもよい。候補は Claude Agent SDK / `claude -p` / Codex exec / PydanticAI。
+**アーム間でモデルを揃えること**（比較の交絡を避ける）。使ったモデル名とパラメータを結果に必ず記録する。
+
+**Arm B の出力契約**:
+```json
+{ "answer": "...", "confidence": 0.0-1.0, "evidence": ["path:locator", ...], "abstained": false }
+```
+
+**棄権の扱い**: Arm A は常に答える設計、Arm B は棄権できる設計になりがちで、これは交絡要因。
+→ **両方とも「棄権あり」と「強制回答」の2モードで走らせ、両方記録する。**
+
+---
+
+## 5. 評価仕様
+
+### 5-1. 採点
+
+1. **正規化 exact match**（主）: 空白・全角半角・桁区切り・単位・末尾句読点を正規化し、`answer` と `answer_aliases` のいずれかに一致で正解
+2. **LLM judge**（副）: exact match が外れた回答だけを判定にかける。judge のモデル・プロンプトを固定して記録
+3. judge が exact と食い違った件数を必ずレポートする（採点の信頼区間として）
+
+### 5-2. 2種類のスコア
+
+棄権の扱いで結論が変わるので**両方出す**。
+
+```
+accuracy      = correct / total
+penalized     = (correct − incorrect) / total      # 棄権は 0
+answer_rate   = answered / total
+precision     = correct / answered
+```
+
+### 5-3. 記録する項目（1問ごと）
+
+`qid, channel, arm, answer, correct, judged_by, latency_s, input_tokens, output_tokens, cost_usd, tool_calls, files_opened, abstained, k, model, seed, run_id`
+
+### 5-4. 非決定性
+
+LLM は temperature 0 でも非決定になりうる。
+→ **全アーム N=3 回実行**し、正答率は平均、ばらつき（min/max）も併記する。1発取りの数字を結論にしない。
+
+---
+
+## 6. 成果物（figures）
+
+このリポジトリの結論は次の3枚で示す。
+
+1. **`channel_heatmap.png`** — チャネル × アーム の正答率ヒートマップ。**これが主成果物。**
+2. **`cost_accuracy.png`** — 横軸 1問あたりコスト（対数）、縦軸 正答率。3アームを散布。損益分岐が見える。
+3. **`scaling.png`** — 横軸 コーパスのファイル数（50 / 500 / 5,000）、縦軸 正答率。Arm B が破綻する点、Arm C がそれを救う点。
+
+README にはこの3枚と、`docs/architecture.md`（classical と agentic の構成図）を載せる。
+
+---
+
+## 7. リポジトリ構成
+
+```
+where-rag-breaks/
+├─ README.md                  主張・図3枚・再現手順
+├─ SPEC.md                    このファイル
+├─ pyproject.toml             uv 管理
+├─ gen/
+│  ├─ __main__.py             python -m gen --seed 42 --files 100 --out corpus/
+│  ├─ common.py               Item, 共通ユーティリティ, 決定的 rng
+│  └─ channels/
+│     ├─ text.py  format.py  formula.py  chart_only.py  chart_native.py
+│     ├─ scanned.py  layout.py  version.py  cross_file.py
+│     └─ hidden.py  locked.py
+├─ corpus/                    .gitignore（生成物。スクリプトで再生成）
+│  ├─ files/                  生成された docx/xlsx/pptx/pdf/png
+│  └─ questions.jsonl         Item の一覧（answer 含む）
+├─ arms/
+│  ├─ base.py                 Arm インタフェース
+│  ├─ classical/              chunk + BM25 + dense + top-k
+│  ├─ agentic/                catalog + markdown mirror + tools
+│  └─ hybrid/                 retrieve-then-agent
+├─ ingest/                    Arm B/C 用の前処理（markdown ミラー + catalog.md）
+├─ eval/
+│  ├─ run.py                  アーム × 設問 を走らせて raw を吐く
+│  ├─ score.py                正規化 exact + LLM judge
+│  ├─ leak_check.py           答えがファイル名/カタログに漏れていないか検査
+│  └─ report.py               figures + markdown レポート生成
+├─ results/
+│  └─ <run_id>/               raw.jsonl, scored.csv, figures/, meta.json
+└─ docs/
+   └─ architecture.md         構成図（classical vs agentic）
+```
+
+---
+
+## 8. フェーズ計画
+
+各フェーズは**単独で止まれる**こと。フェーズ末に必ず測定値を出す。
+
+| Phase | 内容 | 完了条件 |
+|---|---|---|
+| **P0** | 足場 + `text` `formula` の2チャネル + Arm A | 2チャネルで正答率に差が出る。同seed再生成がバイト一致 |
+| **P1** | 全11チャネル、60〜110問 | `leak_check` PASS。全問に正解ラベルがある |
+| **P2** | Arm B | Arm B が `text` で Arm A と同等以上。ツール呼出がログに残る |
+| **P3** | Arm C + ヒートマップ | `channel_heatmap.png` が出る。H1/H2 の判定ができる |
+| **P4** | スケーリング（50 / 500 / 5,000） | `scaling.png` が出る。Arm B の破綻点が特定できる |
+| **P5** | 実データ検証（任意・小規模） | 下記 §9 |
+
+★ **P0 で H1/H2 の兆候が出なければ、先に進まずチャネル設計を見直す。**
+
+---
+
+## 9. 実データ検証（P5・任意）
+
+合成データだけだと「作為的」と言われる。小規模でよいので実データで裏を取る。
+
+**推奨素材: 上場企業のIR資料**
+- 決算短信(PDF) / 決算説明会資料(グラフ画像が主) / 補足資料(Excel) / 有価証券報告書
+- ★ **XBRL があるので正解ラベルを機械的に作れる**（手ラベリング不要）
+- 前期比較 = `version`、複数社 = `cross_file`、説明会資料 = `chart_only` が自然に存在する
+
+**注意**: 資料そのものはリポジトリに入れない。**URL リスト + ダウンローダ**を置き、利用者が自分で取得する形にする。
+
+---
+
+## 10. 環境の注意（実装者向け・実測済み）
+
+このプロジェクトを Windows 機で動かす場合の既知の罠。
+
+| 項目 | 内容 |
+|---|---|
+| **TLS 傍受** | アンチウイルスが TLS を傍受する環境では `uv sync` が失敗する → **`uv sync --system-certs` を使う** |
+| **uv の導入** | `irm ... \| iex` は EPERM で不可な場合がある → pip 経由で導入 |
+| **OpenAI SDK の SSL** | Python の openai が SSL 検証で落ちる → 起動時に **`truststore.inject_into_ssl()`** |
+| **Anthropic SDK の SSL** | 既定の httpx2 クライアントがクラッシュする場合がある → `DefaultHttpxClient` + `truststore.SSLContext` を明示 |
+| **LLM の非決定性** | temperature 0 でも出力が揺れるモデルがある → §5-4 の N=3 を必須とする |
+| **日本語パス** | Windows のファイルシステム上の日本語名は NFD 正規化される。Python の NFC リテラルで `os.path.join` すると `exists()==False` になる → listdir で実名を取り NFC 比較する |
+| **LibreOffice** | 無い前提で設計してある（§3-4）。入れなくても全チャネル生成できる |
+
+→ この罠を避けるため、**コーパスの既定ロケールは英語**にする（`--locale ja` で日本語コーパスも生成できるよう生成器をパラメータ化する）。英語にすると共有もしやすい。
+
+---
+
+## 11. ガードレール（禁止事項）
+
+このリポジトリの価値は**公平な比較**にある。以下は明確に禁止。
+
+- ❌ **設問ごとの特別扱い**。どのアームにも `if qid == "..."` を書かない。アームは設問IDを見てはいけない
+- ❌ **Arm A の手抜き**（§4-1）。抽出器に意図的な穴を作らない
+- ❌ **答えのハードコード**、および答えをファイル名・カタログ・プロンプトに漏らすこと（`leak_check` で自動検査）
+- ❌ **結果を見てから採点基準を変えること**。`answer_aliases` は生成時に確定させ、事後追加したら必ずレポートに明記する
+- ❌ **1発取りの数字を結論にすること**（N=3 とばらつき併記）
+- ❌ アーム間でモデル・温度・リトライ回数を揃えないこと
+
+---
+
+## 12. 未決定事項（実装開始前に決める）
+
+| # | 論点 | 既定案 | 備考 |
+|---|---|---|---|
+| 1 | コーパスの言語 | **英語**（`--locale` でjaも可） | 共有しやすさ + Windows のNFD罠回避 |
+| 2 | Arm B のハーネス | Claude Agent SDK / `claude -p` | Codex exec・PydanticAI でも可。1つに決めて全アームでモデルを揃える |
+| 3 | 埋め込みモデル | `text-embedding-3-large` | 変えるなら結果に明記 |
+| 4 | reranker を入れるか | 入れない（P3 以降で検討） | 入れる場合は Arm A の強化として必ず明記 |
+| 5 | `locked` チャネルの暗号化方式 | msoffcrypto-tool → 不可なら pyzipper | §3-5 |
+| 6 | 5,000ファイル規模のコスト上限 | 要見積 | Arm B は1問あたり分単位。P4 は問題数を絞ってよい |
+| 7 | リポジトリ名 | `where-rag-breaks` | |
+
+---
+
+## 13. 最初の一歩（新セッションへの指示）
+
+1. `pyproject.toml` と `gen/common.py`（`Item` と決定的 rng）を作る
+2. `gen/channels/text.py` と `gen/channels/formula.py` を実装する
+3. `python -m gen --seed 42 --files 20 --out corpus/` が動き、**2回実行してバイト一致**することを確認
+4. `arms/classical/` を §4-1 の規律で実装（BM25 + dense、k スイープ）
+5. `eval/run.py` + `eval/score.py` で2チャネルを採点し、**正答率の差を報告する**
+
+ここで止まって、H1/H2 の兆候が出ているかを人間に確認してもらうこと。
