@@ -1,0 +1,34 @@
+{
+  "corpus": {
+    "channels": [
+      "chart_native",
+      "chart_only",
+      "cross_file",
+      "format",
+      "formula",
+      "hidden",
+      "layout",
+      "locked",
+      "scanned",
+      "text",
+      "version"
+    ],
+    "generator_version": 2,
+    "locale": "ja",
+    "n_files_requested": 250,
+    "n_files_written": 308,
+    "n_filler_files": 162,
+    "n_questions": 66,
+    "questions_per_channel": 6,
+    "seed": 42
+  },
+  "n_blocks": 515,
+  "n_chunks": 591,
+  "chunk_chars": 1200,
+  "overlap_chars": 200,
+  "embedding_model": "BAAI/bge-m3",
+  "retrieval": "bm25 + dense (RRF)",
+  "k_values": [
+    8
+  ]
+}
