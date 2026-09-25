@@ -164,6 +164,38 @@ JA = Locale(
             "案件シリーズ {series} に属する全案件（{first} 〜 {last}）の"
             "契約金額の合計はいくらか。円単位の数値で答えよ。"
         ),
+        # ── chart_only チャネル ──────────────────────────────
+        "co_deck_title": "{period} 事業説明資料（{code}）",
+        "co_slide_chart": "拠点別 出荷実績",
+        "co_chart_title": "{period} 拠点別 出荷実績",
+        "co_chart_ylabel": "出荷数（台）",
+        "co_body_caption": "各拠点の出荷実績は下図のとおり。",
+        "co_body_total": "参考: 全社合計は {total} 台。",
+        "co_table_header": "拠点 | 出荷数（台）",
+        "q_chart_only": (
+            "事業説明資料 {code} の図表によると、{site} の出荷数は何台か。数値のみ答えよ。"
+        ),
+        # ── layout チャネル ──────────────────────────────────
+        "ly_doc_title": "{room} 座席配置（{code}）",
+        "ly_caption": "座席の配置は下図のとおり。",
+        "ly_seat_rule": "A列は左から A-1、A-2、A-3 の順に並ぶ。",
+        "ly_roster_heading": "在席者一覧（五十音順）",
+        "ly_table_heading": "座席割当",
+        "q_layout": "座席配置 {code} において、{person} のすぐ右隣の席に座っているのは誰か。",
+        # ── scanned チャネル ─────────────────────────────────
+        "sc_title": "受入検査成績書",
+        "sc_line_code": "報告番号: {code}",
+        "sc_line_site": "検査場所: {site}",
+        "sc_line_item": "対象品目: {item}",
+        "sc_line_lot": "ロット番号: {lot}",
+        "sc_line_value": "測定値: {value}",
+        "sc_line_judge": "判定: {judge}",
+        "sc_cover_title": "検査成績書 送付状（{code}）",
+        "sc_cover_body": (
+            "標記の検査成績書を送付いたします。詳細は添付の成績書本体をご確認ください。"
+        ),
+        "sc_cover_decoy": "なお、前回ロット（{lot}）の判定は {judge} でした。",
+        "q_scanned": "検査成績書 {code} のロット番号は何か。",
     },
 )
 
@@ -314,6 +346,42 @@ EN = Locale(
             "What is the combined contract value of every case in series {series} "
             "({first} through {last})? Answer as a number."
         ),
+        # ── chart_only ───────────────────────────────────────
+        "co_deck_title": "{period} business review ({code})",
+        "co_slide_chart": "Shipments by site",
+        "co_chart_title": "{period} shipments by site",
+        "co_chart_ylabel": "Units shipped",
+        "co_body_caption": "Shipments by site are shown below.",
+        "co_body_total": "For reference, the company-wide total is {total} units.",
+        "co_table_header": "Site | Units shipped",
+        "q_chart_only": (
+            "According to the figure in business review {code}, how many units did "
+            "{site} ship? Answer with the number only."
+        ),
+        # ── layout ───────────────────────────────────────────
+        "ly_doc_title": "{room} seating plan ({code})",
+        "ly_caption": "The seating arrangement is shown below.",
+        "ly_seat_rule": "Row A runs left to right as A-1, A-2, A-3.",
+        "ly_roster_heading": "Occupants (alphabetical)",
+        "ly_table_heading": "Seat assignments",
+        "q_layout": (
+            "In seating plan {code}, who sits in the seat immediately to the right "
+            "of {person}?"
+        ),
+        # ── scanned ──────────────────────────────────────────
+        "sc_title": "Incoming inspection report",
+        "sc_line_code": "Report no.: {code}",
+        "sc_line_site": "Location: {site}",
+        "sc_line_item": "Item: {item}",
+        "sc_line_lot": "Lot number: {lot}",
+        "sc_line_value": "Measured: {value}",
+        "sc_line_judge": "Result: {judge}",
+        "sc_cover_title": "Inspection report cover note ({code})",
+        "sc_cover_body": (
+            "Please find the inspection report enclosed. See the report itself for details."
+        ),
+        "sc_cover_decoy": "Note that the previous lot ({lot}) was judged {judge}.",
+        "q_scanned": "What is the lot number on inspection report {code}?",
     },
 )
 

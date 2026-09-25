@@ -30,6 +30,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: 日本語フォントを入れる（画像チャネルの生成に必要）
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-cjk
+
       - name: uv をセットアップ
         uses: astral-sh/setup-uv@v5
         with:
