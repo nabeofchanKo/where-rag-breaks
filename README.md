@@ -4,7 +4,8 @@
 >
 > A benchmark that measures **which information channels break classical RAG** (chunk + embed + top-k), using a synthetic corpus with automatically-derived ground truth.
 
-**ステータス / Status: P0（足場 + `text` `formula` の2チャネル + Arm A）作業中。図と数値はまだありません。**
+**ステータス / Status: P0 作業中。図3枚はまだ出ていません。**
+**現時点の測定は「検索プローブ」（LLM 未使用）のみ / So far only the retrieval probe (no LLM) has been run.**
 
 ---
 
@@ -29,6 +30,40 @@
 | **C `hybrid`** | 両方 | A でファイル候補を絞ってから B |
 
 11の情報チャネル: `text` `format` `formula` `chart_only` `chart_native` `scanned` `layout` `version` `cross_file` `hidden` `locked`
+
+### 現時点でわかっていること（検索プローブ・LLM 未使用）
+
+LLM を呼ぶ前に、**検索側だけ**を切り出して測れる。課金ゼロで完全に決定的なので、
+チャネル設計が効いているかをここで先に確認する。
+
+`--seed 42 --files 120 --questions 10`（日本語コーパス、120ファイル、540チャンク、
+BM25 + BGE-m3 の RRF 融合）:
+
+| チャネル | k | file_recall | answer_literal | answer_literal_corpus |
+|---|---|---|---|---|
+| `text` | 4 / 8 / 16 / 32 | 1.000 | 1.000 | 1.000 |
+| `formula` | 4 / 8 / 16 / 32 | **1.000** | **0.000** | **0.000** |
+
+- `file_recall` … 上位 k に答えのあるファイルが入った割合
+- `answer_literal` … 上位 k の本文に正解文字列がそのまま現れた割合
+- `answer_literal_corpus` … コーパス全体の抽出テキストに現れる割合（k 非依存）
+
+読み方: **`formula` は検索が失敗しているのではない。** 正しいファイルは k=4 で
+100% 引けている。それでも答えが手に入らないのは、抽出テキストのどこにも
+答えが存在しないから。k を 32 に上げても、コーパス全体を見ても 0%。
+これが「チャンク化の時点で落ちる」ということの、検索側から見た姿である。
+
+> ⚠️ **この数字を過大に読まないこと。** `answer_literal` が 0 でも、モデルが
+> 数量と単価から**計算で導ける**可能性は残る。これは「答えがそのままの形では
+> 存在しない」ことの証拠であって、「答えられない」ことの証明ではない。
+> 実際の正答率は Arm A を走らせて測る。
+
+再現:
+
+```bash
+uv run python -m gen --seed 42 --files 120 --questions 10 --out corpus/
+uv run python -m eval.retrieval_probe --corpus corpus/ --k 4,8,16,32
+```
 
 ### 公平性のためのルール
 
@@ -71,7 +106,17 @@ uv run python -m eval.leak_check --corpus corpus/
 
 # 決定性テスト（同 seed で2回生成してバイト一致するか）
 uv run pytest
+
+# 検索側だけを測る（LLM 未使用・課金ゼロ）
+uv run python -m eval.retrieval_probe --corpus corpus/ --k 4,8,16,32
+
+# アームを走らせる（LLM を呼ぶ。認証が要る）
+uv run python -m eval.run --corpus corpus/ --arms classical --k 4,8,16
+uv run python -m eval.score --run results/<run_id>
 ```
+
+Windows でこのリポジトリを動かすときに踏んだ罠は
+[docs/environment-notes.md](docs/environment-notes.md) にまとめてある。
 
 ### コーパスの言語
 
@@ -106,6 +151,41 @@ Three implementations run over the same corpus with the same model. Accuracy and
 | **C `hybrid`** | both | A narrows the file candidates, then B |
 
 Eleven channels: `text` `format` `formula` `chart_only` `chart_native` `scanned` `layout` `version` `cross_file` `hidden` `locked`
+
+### What we know so far (retrieval probe, no LLM)
+
+The retrieval side can be measured on its own, before any LLM is involved. It costs
+nothing and is fully deterministic, which makes it the right place to check whether
+the channel design actually bites.
+
+`--seed 42 --files 120 --questions 10` (Japanese corpus, 120 files, 540 chunks,
+BM25 + BGE-m3 fused with RRF):
+
+| Channel | k | file_recall | answer_literal | answer_literal_corpus |
+|---|---|---|---|---|
+| `text` | 4 / 8 / 16 / 32 | 1.000 | 1.000 | 1.000 |
+| `formula` | 4 / 8 / 16 / 32 | **1.000** | **0.000** | **0.000** |
+
+- `file_recall` — a chunk from a file that holds the answer made it into the top k
+- `answer_literal` — the answer string appears verbatim in the retrieved text
+- `answer_literal_corpus` — it appears anywhere in the extracted corpus (k-independent)
+
+How to read it: **`formula` is not a retrieval failure.** The right file is retrieved
+100% of the time at k=4. The answer is still unavailable because it exists nowhere in
+the extracted text — not at k=32, not across the whole corpus. That is what "dropped
+at chunking time" looks like from the retrieval side.
+
+> ⚠️ **Do not over-read this.** `answer_literal` of 0 leaves open that the model can
+> still *derive* the answer from the quantities and unit prices. This is evidence that
+> the answer does not exist in literal form, not proof that it cannot be answered.
+> Actual accuracy requires running Arm A.
+
+Reproduce:
+
+```bash
+uv run python -m gen --seed 42 --files 120 --questions 10 --out corpus/
+uv run python -m eval.retrieval_probe --corpus corpus/ --k 4,8,16,32
+```
 
 ### Fairness rules
 
@@ -144,7 +224,17 @@ uv run python -m eval.leak_check --corpus corpus/
 
 # Determinism test: generate twice with the same seed, assert byte equality
 uv run pytest
+
+# Measure retrieval alone (no LLM, no cost)
+uv run python -m eval.retrieval_probe --corpus corpus/ --k 4,8,16,32
+
+# Run the arms (calls the LLM; needs credentials)
+uv run python -m eval.run --corpus corpus/ --arms classical --k 4,8,16
+uv run python -m eval.score --run results/<run_id>
 ```
+
+The Windows-specific traps hit while building this are written up in
+[docs/environment-notes.md](docs/environment-notes.md).
 
 ### Corpus language
 

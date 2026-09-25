@@ -1,0 +1,9 @@
+﻿channel,k,n,file_recall,answer_literal,answer_literal_corpus
+formula,4,10,1.0,0.0,0.0
+formula,8,10,1.0,0.0,0.0
+formula,16,10,1.0,0.0,0.0
+formula,32,10,1.0,0.0,0.0
+text,4,10,1.0,1.0,1.0
+text,8,10,1.0,1.0,1.0
+text,16,10,1.0,1.0,1.0
+text,32,10,1.0,1.0,1.0

@@ -1,0 +1,28 @@
+{
+  "corpus": {
+    "channels": [
+      "formula",
+      "text"
+    ],
+    "generator_version": 1,
+    "locale": "ja",
+    "n_files_requested": 120,
+    "n_files_written": 120,
+    "n_filler_files": 100,
+    "n_questions": 20,
+    "questions_per_channel": 10,
+    "seed": 42
+  },
+  "n_blocks": 540,
+  "n_chunks": 540,
+  "chunk_chars": 1200,
+  "overlap_chars": 200,
+  "embedding_model": "BAAI/bge-m3",
+  "retrieval": "bm25 + dense (RRF)",
+  "k_values": [
+    4,
+    8,
+    16,
+    32
+  ]
+}
