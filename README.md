@@ -4,8 +4,8 @@
 >
 > A benchmark that measures **which information channels break classical RAG** (chunk + embed + top-k), using a synthetic corpus with automatically-derived ground truth.
 
-**ステータス / Status: P0 完了（`text` `formula` の2チャネル + Arm A）。残り9チャネルと Arm B/C は未着手。**
-**Status: P0 done (2 channels + Arm A). The other 9 channels and Arms B/C are not built yet.**
+**ステータス: P1 完了。11チャネルすべてと Arm A が動く。Arm B/C（P2・P3）は未着手。**
+**Status: P1 done. All 11 channels and Arm A work. Arms B and C (P2, P3) are not built yet.**
 
 ---
 
@@ -30,6 +30,44 @@
 | **C `hybrid`** | 両方 | A でファイル候補を絞ってから B |
 
 11の情報チャネル: `text` `format` `formula` `chart_only` `chart_native` `scanned` `layout` `version` `cross_file` `hidden` `locked`
+
+### チャネル設計の共通ルール — 各チャネルに「コントロール段」を置く
+
+全チャネルが**難易度1〜3 の3段**を持ち、難易度は「計算の難しさ」ではなく
+**何が抽出不能か**で決めている。
+
+| 段 | 位置づけ |
+|---|---|
+| **1 コントロール** | 同じ答えが**テキストからも読める**形で置いてある。classical が解けて当然の段 |
+| **2 到達不能** | 答えがそのチャネル固有の場所にしかない |
+| **3 囮つき** | 答えは到達不能で、かつ**もっともらしい間違った値が読める位置にある** |
+
+**難易度1 を置くのがこの設計の肝。** ここが 1.000 に張り付いていれば、
+「罠を積み上げて baseline を潰しただけではない」ことの証拠になる。逆にここが
+落ちたら、それは罠が効いたのではなく抽出器か検索が壊れている合図である。
+
+難易度3 の「囮」は `Item.decoys` に生成時から登録してあり、採点は
+`decoy_rate`（= **設計どおりの間違え方をした割合**）を出す。
+単なる不正解と、罠が狙いどおり効いた不正解は別物として数える。
+
+| チャネル | 答えの所在 | 難易度3 の囮 |
+|---|---|---|
+| `text` | 本文の段落 | （ベースライン） |
+| `format` | セルの塗り色 | 別の行の備考欄に目立つ文字列 |
+| `formula` | 数式と参照範囲 | 陳腐化したキャッシュ値 |
+| `chart_only` | グラフ画像の中の数値 | 本文に書かれた全社合計 |
+| `chart_native` | chart定義の系列名（非表示シート参照） | 別順序の「掲載順」注記 |
+| `scanned` | テキスト層のない画像PDF | 送付状に載る前回ロット番号 |
+| `layout` | 図形の空間関係 | 五十音順の在席者一覧 |
+| `version` | 旧版と新版の実質差分 | **旧版の値そのもの**（難易度2 にも囮がある） |
+| `cross_file` | N ファイルにまたがる集計 | 1件取りこぼした古い集計表 |
+| `hidden` | pptx の発表者ノート | 本文に載る前回案件の値引き率 |
+| `locked` | パスワード付きファイルの中身 | 送付状に載る速報値 |
+
+> ★ **`format` と `layout`、`chart_native` 難易度3 では、正解の文字列自体は
+> 抽出テキストに現れる。** 管理番号は表にあるし、氏名は一覧に載る。
+> 隠れているのは文字列ではなく「どれがそれか」という対応づけである。
+> 「正解文字列が抽出できる＝罠が壊れている」ではない点に注意。
 
 ### Arm A の測定結果（P0）
 
@@ -238,6 +276,45 @@ Three implementations run over the same corpus with the same model. Accuracy and
 | **C `hybrid`** | both | A narrows the file candidates, then B |
 
 Eleven channels: `text` `format` `formula` `chart_only` `chart_native` `scanned` `layout` `version` `cross_file` `hidden` `locked`
+
+### One rule across every channel: each has a control tier
+
+Every channel has **three tiers**, graded not by how hard the arithmetic is but by
+**what cannot be extracted**.
+
+| Tier | What it is |
+|---|---|
+| **1 control** | the same answer is also readable as plain text. Classical RAG is expected to get this |
+| **2 unreachable** | the answer exists only in that channel's medium |
+| **3 decoyed** | the answer is unreachable *and* a plausible wrong value is readable instead |
+
+**Tier 1 is the load-bearing part of this design.** As long as it stays pinned at
+1.000, the benchmark has evidence that it did not simply stack traps until the
+baseline lost. If tier 1 ever drops, that is a signal the extractor or the retriever
+is broken, not that a trap worked.
+
+Tier 3 decoys are registered in `Item.decoys` at generation time, and scoring reports
+`decoy_rate` — **the share of answers that were wrong in the specific way the trap
+predicted**. Being wrong and being wrong on cue are counted separately.
+
+| Channel | Where the answer lives | Tier 3 decoy |
+|---|---|---|
+| `text` | a body paragraph | (baseline) |
+| `format` | a cell's fill colour | a salient note on a different row |
+| `formula` | a formula and its range | a stale cached value |
+| `chart_only` | a number inside a chart image | a company-wide total in the body text |
+| `chart_native` | chart series names over a hidden sheet | a differently-ordered listing note |
+| `scanned` | an image-only PDF | the previous lot number on the cover note |
+| `layout` | spatial arrangement in a diagram | an alphabetical occupant roster |
+| `version` | the substantive diff between editions | **the old edition's value** (tier 2 is decoyed too) |
+| `cross_file` | a sum across N files | a roll-up that missed one case |
+| `hidden` | a pptx presenter note | the previous deal's discount in the body |
+| `locked` | inside a password-protected file | a preliminary figure on the cover note |
+
+> ★ **In `format`, `layout` and `chart_native` tier 3, the answer string itself does
+> appear in the extracted text.** The record numbers are in the table; the names are in
+> the roster. What is hidden is not the string but which one it is. "The answer is
+> extractable" therefore does not mean the trap failed.
 
 ### Arm A results (P0)
 

@@ -199,17 +199,176 @@ def _xml_escape(text: str) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
+# PDF のうち実行ごとに変わる部分。
+#
+# ★ ``/ID`` の 2 要素は 16進文字列 ``<...>`` とは限らない。PyMuPDF は乱数の
+#   中身によってはリテラル文字列 ``(...)`` で書き、**エスケープのぶんファイル
+#   全長まで変わる**。そのため「同じ長さで詰め替える」方式では追いつかない
+#   （実測: 200 ファイル中 1 件だけすり抜けた）。
+#
+#   ただし ``/ID`` は trailer にあり、trailer は xref テーブルより**後ろ**に
+#   位置する。xref のエントリが指すのはすべて前方のオブジェクトで、
+#   ``startxref`` が指すのも前方の xref テーブルなので、
+#   **trailer 内に限れば長さを変えても壊れない。**
+#
+#   一方 xref ストリーム形式の PDF では ID がオブジェクトの中に入りうる。
+#   その場合は長さを変えるとオフセットがずれるため、同じ長さの詰め替えに
+#   落とす。判定は「最後の ``trailer`` キーワードより後ろにあるか」で行う。
+_PDF_ID_RE = re.compile(rb"(/ID\s*\[)(.*?)(\])", re.DOTALL)
+_PDF_DATE_RE = re.compile(rb"(/(?:CreationDate|ModDate)\s*\()([^)]*)(\))")
+
+# trailer 内で使う正規形。長さは問わない。
+_CANONICAL_ID = b"<" + b"0" * 32 + b"><" + b"0" * 32 + b">"
+
+
+def _fixed_length_id_body(length: int) -> bytes:
+    """``/ID[`` と ``]`` の間に入れる、指定バイト長ちょうどの正規形。
+
+    ``<0000...><0000...>`` の形。16進文字列は桁数が奇数でも PDF の仕様上
+    有効（末尾に 0 が補われる）なので、任意の長さに合わせられる。
+    """
+    digits = length - 4  # 山括弧 4 個ぶん
+    if digits < 0:
+        return b"0" * length
+    first = digits // 2
+    return b"<" + b"0" * first + b"><" + b"0" * (digits - first) + b">"
+
+
+def normalize_pdf(path: Path) -> None:
+    """PDF をバイト再現可能にする（インプレース）。
+
+    PyMuPDF は保存のたびにランダムな ``/ID`` を書く。メタデータを空にしても
+    残るため、ここで潰さないと ``scanned`` チャネルは同 seed でもバイト一致
+    しない。
+    """
+    raw = path.read_bytes()
+    trailer_at = raw.rfind(b"\ntrailer")
+
+    if trailer_at >= 0:
+        span = _scan_id_array(raw, trailer_at)
+        if span is not None:
+            open_at, close_at = span
+            raw = raw[:open_at] + _CANONICAL_ID + raw[close_at:]
+
+    def fixed_date(m: re.Match[bytes]) -> bytes:
+        original = m.group(2)
+        stamp = b"D:20260101000000Z"
+        # 長さを合わせる（足りなければ空白で埋め、長ければ切る）
+        adjusted = stamp[: len(original)].ljust(len(original), b" ")
+        return m.group(1) + adjusted + m.group(3)
+
+    # trailer の外に残った ID（xref ストリーム形式）は長さを保って詰め替える
+    def fixed_id(m: re.Match[bytes]) -> bytes:
+        return m.group(1) + _fixed_length_id_body(len(m.group(2))) + m.group(3)
+
+    raw = _PDF_ID_RE.sub(fixed_id, raw)
+    raw = _PDF_DATE_RE.sub(fixed_date, raw)
+    path.write_bytes(raw)
+
+
+def _scan_id_array(raw: bytes, from_index: int) -> tuple[int, int] | None:
+    """``/ID[`` の中身の範囲 ``(開始, 終了)`` を、PDF の文字列構文に沿って返す。
+
+    ★ 正規表現でやってはいけない理由:
+        ``/ID`` の要素はリテラル文字列 ``(...)`` になることがあり、その中には
+        ``]`` を含む任意のバイトが入りうる。``\\[(.*?)\\]`` で非貪欲に取ると
+        文字列の途中の ``]`` で切れて、置換結果が壊れる。
+        実測で 60 件中 1 件この経路に落ちた。
+    """
+    marker = raw.find(b"/ID", from_index)
+    if marker < 0:
+        return None
+    index = marker + 3
+    while index < len(raw) and raw[index : index + 1].isspace():
+        index += 1
+    if raw[index : index + 1] != b"[":
+        return None
+
+    open_at = index + 1
+    index = open_at
+    while index < len(raw):
+        char = raw[index : index + 1]
+        if char == b"]":
+            return open_at, index
+        if char == b"<":  # 16進文字列
+            end = raw.find(b">", index)
+            if end < 0:
+                return None
+            index = end + 1
+        elif char == b"(":  # リテラル文字列。ネストとエスケープを追う
+            depth, index = 1, index + 1
+            while index < len(raw) and depth:
+                byte = raw[index : index + 1]
+                if byte == b"\\":
+                    index += 2
+                    continue
+                if byte == b"(":
+                    depth += 1
+                elif byte == b")":
+                    depth -= 1
+                index += 1
+        else:
+            index += 1
+    return None
+
+
+def deterministic_aes_zip(path: Path, password: str, entries: dict[str, str]) -> None:
+    """パスワード付き AES zip を**バイト再現可能に**作る。
+
+    ★ なぜ乱数源を固定するのか:
+        AES はエントリごとにランダムな salt を使うため、素直に作ると
+        同じ seed でも毎回違うバイト列になる。SPEC §8 P0 の
+        「同 seed 再生成がバイト一致」と正面から衝突する。
+
+        ここで生成するのは**合成コーパスであり、パスワードは同じコーパス内の
+        別文書に規則として公開されている**。秘匿が目的ではなく「プログラムから
+        素直には開けないファイル」を再現可能に作ることが目的なので、
+        salt を固定して困る人はいない。
+
+        ★ 当然ながら、**本物の秘密をこの関数で守ってはいけない。**
+    """
+    import random as _random
+    from unittest.mock import patch
+
+    import pyzipper
+    from pyzipper import zipfile_aes
+
+    class _FixedRandom:
+        """``Cryptodome.Random.new()`` の差し替え。salt を決定的にする。"""
+
+        def __init__(self) -> None:
+            self._rng = _random.Random(f"wrb-salt:{path.name}")
+
+        def read(self, size: int) -> bytes:
+            return bytes(self._rng.randrange(256) for _ in range(size))
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with patch.object(zipfile_aes.Random, "new", _FixedRandom):
+        with pyzipper.AESZipFile(
+            path, "w", compression=pyzipper.ZIP_DEFLATED, encryption=pyzipper.WZ_AES
+        ) as zf:
+            zf.setpassword(password.encode("utf-8"))
+            for name, body in sorted(entries.items()):
+                info = zipfile_aes.AESZipInfo(filename=name, date_time=FIXED_ZIP_DATETIME)
+                info.compress_type = zipfile.ZIP_DEFLATED
+                zf.writestr(info, body)
+
+
 _OOXML_SUFFIXES = {".docx", ".xlsx", ".pptx", ".docm", ".xlsm", ".pptm"}
 
 
 def normalize_artifact(path: Path) -> None:
     """生成物を決定的な形に正規化する。拡張子で処理を振り分ける。
 
-    OOXML 以外（PDF / PNG）は、生成側でタイムスタンプを埋め込まない書き方を
-    しているため追加処理は不要。詳細は各チャネルの生成器を参照。
+    PNG は生成側で対処する（matplotlib は既定で Software 名を埋め込むので
+    ``metadata={"Software": None}`` を渡す。PIL は既定では何も埋め込まない）。
+    詳細は ``gen/imaging.py``。
     """
-    if path.suffix.lower() in _OOXML_SUFFIXES:
+    suffix = path.suffix.lower()
+    if suffix in _OOXML_SUFFIXES:
         normalize_ooxml(path)
+    elif suffix == ".pdf":
+        normalize_pdf(path)
 
 
 # ── ハッシュ（決定性テスト用）────────────────────────────────────────
@@ -244,7 +403,13 @@ def normalize_text(value: str) -> str:
     s = unicodedata.normalize("NFKC", value)
     s = s.strip().strip(_PUNCT_TAIL).strip()
     s = re.sub(r"\s+", "", s)
-    s = re.sub(r"(?<=\d),(?=\d{3}\b)", "", s)  # 1,320 -> 1320（桁区切りのみ）
+    # 1,320 -> 1320（桁区切りのみ）。
+    # ★ ここで \b を使ってはいけない。Python の \w は CJK を含むので、
+    #   「390,000円」の直前のカンマは「境界なし」と判定されて残ってしまう。
+    #   実測: normalize_text("13,390,000 円") が "13390,000円" になり、
+    #   単位付きの金額が正解と一致しなくなっていた。
+    #   「3桁ちょうどで、その後ろが数字でない」で判定する。
+    s = re.sub(r"(?<=\d),(?=\d{3}(?!\d))", "", s)
     return s.casefold()
 
 

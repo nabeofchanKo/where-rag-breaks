@@ -22,6 +22,7 @@ from pathlib import Path
 
 from gen.channels import ALL_CHANNELS, REGISTRY
 from gen.common import Item, hash_tree, make_rng, write_questions_jsonl
+from gen.imaging import require_fonts
 from gen.locales import get_locale
 
 # コーパスの形式を変える変更を入れたら上げる。meta.json に記録され、
@@ -81,6 +82,9 @@ def generate_corpus(
     seed: int, files: int, questions: int, locale_code: str, channels: list[str], out: Path
 ) -> dict:
     locale = get_locale(locale_code)
+    # 画像を持つチャネルがある言語でフォントが無いと、気づかないまま
+    # 豆腐だらけのコーパスができてしまう。生成前に落とす。
+    require_fonts(locale_code)
     files_dir = out / "files"
 
     # 前回の残骸が混ざるとバイト一致が崩れるので作り直す

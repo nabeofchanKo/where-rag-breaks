@@ -19,6 +19,7 @@ dependencies = [
     "pymupdf>=1.24",        # PDF 生成とラスタライズ（scanned）
     "pillow>=10.4",         # 図形描画（layout）
     "matplotlib>=3.9",      # グラフ画像（chart_only）
+    "pyzipper>=0.4.0",
 ]
 
 [dependency-groups]

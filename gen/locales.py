@@ -125,6 +125,118 @@ JA = Locale(
             "（税抜）はいくらか。円単位の数値で答えよ。"
         ),
         "q_total": "見積 {code} の税込総額はいくらか。円単位の数値で答えよ。",
+        # ── format チャネル ──────────────────────────────────
+        "fm_sheet": "検査記録",
+        "fm_title": "{site} 受入検査記録（{code}）",
+        "fm_h_id": "管理番号",
+        "fm_h_item": "品目",
+        "fm_h_value": "測定値",
+        "fm_h_spec": "規格値",
+        "fm_h_note": "備考",
+        "fm_note_flagged": "要再検査",
+        "fm_note_decoy": "確認中",
+        "q_format": (
+            "検査記録 {code} で、背景が黄色く塗られている行の管理番号を答えよ。"
+        ),
+        # ── hidden チャネル ──────────────────────────────────
+        "hd_title": "{project} ご提案（{code}）",
+        "hd_slide_overview": "提案概要",
+        "hd_slide_price": "お見積り",
+        "hd_slide_schedule": "スケジュール",
+        "hd_body_overview": "{site}における{project}をご提案いたします。",
+        "hd_body_price": "詳細は別紙見積書をご参照ください。",
+        "hd_body_schedule": "着手から完了までおよそ{months}か月を想定しています。",
+        "hd_note_discount": (
+            "社内メモ: 本件の値引き上限は{rate}%。これを超える場合は部長決裁が必要。"
+        ),
+        "hd_body_discount_shown": "想定値引き率: {rate}%",
+        "hd_body_discount_decoy": "参考: 前回案件の値引き率は{rate}%でした。",
+        "q_hidden": (
+            "提案 {code} において、社内で定めている値引きの上限は何パーセントか。"
+            "数値のみ答えよ。"
+        ),
+        # ── cross_file チャネル ──────────────────────────────
+        "cf_doc_title": "案件台帳（{code}）",
+        "cf_body": "案件コード {code} の契約金額は {amount} 円である。主管は{department}。",
+        "cf_summary_title": "案件シリーズ {series} 集計表",
+        "cf_summary_body": "本シリーズの契約金額合計は {amount} 円（{asof}時点の集計）。",
+        "q_cross_file": (
+            "案件シリーズ {series} に属する全案件（{first} 〜 {last}）の"
+            "契約金額の合計はいくらか。円単位の数値で答えよ。"
+        ),
+        # ── chart_only チャネル ──────────────────────────────
+        "co_deck_title": "{period} 事業説明資料（{code}）",
+        "co_slide_chart": "拠点別 出荷実績",
+        "co_chart_title": "{period} 拠点別 出荷実績",
+        "co_chart_ylabel": "出荷数（台）",
+        "co_body_caption": "各拠点の出荷実績は下図のとおり。",
+        "co_body_total": "参考: 全社合計は {total} 台。",
+        "co_table_header": "拠点 | 出荷数（台）",
+        "q_chart_only": (
+            "事業説明資料 {code} の図表によると、{site} の出荷数は何台か。数値のみ答えよ。"
+        ),
+        # ── layout チャネル ──────────────────────────────────
+        "ly_doc_title": "{room} 座席配置（{code}）",
+        "ly_caption": "座席の配置は下図のとおり。",
+        "ly_seat_rule": "A列は左から A-1、A-2、A-3 の順に並ぶ。",
+        "ly_roster_heading": "在席者一覧（五十音順）",
+        "ly_table_heading": "座席割当",
+        "q_layout": "座席配置 {code} において、{person} のすぐ右隣の席に座っているのは誰か。",
+        # ── scanned チャネル ─────────────────────────────────
+        "sc_title": "受入検査成績書",
+        "sc_line_code": "報告番号: {code}",
+        "sc_line_site": "検査場所: {site}",
+        "sc_line_item": "対象品目: {item}",
+        "sc_line_lot": "ロット番号: {lot}",
+        "sc_line_value": "測定値: {value}",
+        "sc_line_judge": "判定: {judge}",
+        "sc_cover_title": "検査成績書 送付状（{code}）",
+        "sc_cover_body": (
+            "標記の検査成績書を送付いたします。詳細は添付の成績書本体をご確認ください。"
+        ),
+        "sc_cover_decoy": "なお、前回ロット（{lot}）の判定は {judge} でした。",
+        "q_scanned": "検査成績書 {code} のロット番号は何か。",
+        # ── chart_native チャネル ────────────────────────────
+        "cn_sheet_visible": "報告",
+        "cn_sheet_hidden": "_src",
+        "cn_title": "{period} 拠点別 稼働率（{code}）",
+        "cn_chart_title": "拠点別 稼働率",
+        "cn_note_caption": "グラフは下表の系列を参照している。",
+        "cn_note_order_decoy": "（掲載順: {order}）",
+        "cn_table_heading": "拠点別 稼働率（参考表）",
+        "q_chart_native": (
+            "稼働率報告 {code} のグラフにおいて、{month} に最も高い値を示した拠点はどこか。"
+        ),
+        # ── version チャネル ─────────────────────────────────
+        "vr_title": "{topic}規程（{code}）",
+        "vr_sec_purpose": "第1条 目的",
+        "vr_sec_scope": "第2条 適用範囲",
+        "vr_sec_warranty": "第3条 保証期間",
+        "vr_sec_misc": "第4条 雑則",
+        "vr_body_purpose": "本規程は{topic}に関する取扱いを定めるものである。",
+        "vr_body_scope": "本規程は当社が締結するすべての{topic}契約に適用する。",
+        "vr_body_warranty": "保証期間は引渡し日から{months}か月とする。",
+        "vr_body_misc": "本規程に定めのない事項は、別途協議のうえ定める。",
+        "vr_index_title": "規程集 目次（{code}）",
+        "vr_index_body": "{code} の内容は old/ 配下の版を参照のこと。",
+        "q_version": (
+            "{topic}規程 {code} の現行版において、保証期間は引渡し日から何か月か。"
+            "数値のみ答えよ。"
+        ),
+        # ── locked チャネル ──────────────────────────────────
+        "lk_archive_name": "settlement.txt",
+        "lk_archive_body": "{code} 精算確定額: {amount} 円（確定日 {date}）",
+        "lk_rule_title": "共有ファイルの取扱い（{code}）",
+        "lk_rule_body": (
+            "精算データは暗号化して共有する。パスワードは「拠点コード（大文字）+ "
+            "ハイフン + 確定日（YYYYMMDD）」とする。"
+        ),
+        "lk_ref_title": "{code} 案件基本情報",
+        "lk_ref_body": "拠点コード: {site_code} / 確定日: {date} / 主管: {department}",
+        "lk_cover_title": "{code} 精算のご連絡",
+        "lk_cover_body": "精算確定額は添付の暗号化ファイルをご確認ください。",
+        "lk_cover_decoy": "（参考: 速報値は {amount} 円でした）",
+        "q_locked": "{code} の精算確定額はいくらか。円単位の数値で答えよ。",
     },
 )
 
@@ -234,6 +346,125 @@ EN = Locale(
             "the items whose status is 'Approved'? Answer as a number."
         ),
         "q_total": "What is the total including tax of quotation {code}? Answer as a number.",
+        # ── format ───────────────────────────────────────────
+        "fm_sheet": "Inspection log",
+        "fm_title": "{site} incoming inspection log ({code})",
+        "fm_h_id": "Record no.",
+        "fm_h_item": "Item",
+        "fm_h_value": "Measured",
+        "fm_h_spec": "Spec",
+        "fm_h_note": "Note",
+        "fm_note_flagged": "Re-inspection required",
+        "fm_note_decoy": "Under review",
+        "q_format": (
+            "In inspection log {code}, give the record number of the row whose "
+            "background is filled yellow."
+        ),
+        # ── hidden ───────────────────────────────────────────
+        "hd_title": "{project} proposal ({code})",
+        "hd_slide_overview": "Overview",
+        "hd_slide_price": "Quotation",
+        "hd_slide_schedule": "Schedule",
+        "hd_body_overview": "We propose the {project} at {site}.",
+        "hd_body_price": "Please refer to the separate quotation for details.",
+        "hd_body_schedule": "We expect roughly {months} months from start to completion.",
+        "hd_note_discount": (
+            "Internal note: the discount ceiling for this deal is {rate}%. "
+            "Anything beyond that needs director approval."
+        ),
+        "hd_body_discount_shown": "Planned discount: {rate}%",
+        "hd_body_discount_decoy": "For reference, the previous deal was discounted {rate}%.",
+        "q_hidden": (
+            "For proposal {code}, what is the internally agreed discount ceiling, "
+            "in percent? Answer with the number only."
+        ),
+        # ── cross_file ───────────────────────────────────────
+        "cf_doc_title": "Case record ({code})",
+        "cf_body": "The contract value of case {code} is {amount}. Owned by {department}.",
+        "cf_summary_title": "Case series {series} roll-up",
+        "cf_summary_body": "Total contract value for this series is {amount} (as of {asof}).",
+        "q_cross_file": (
+            "What is the combined contract value of every case in series {series} "
+            "({first} through {last})? Answer as a number."
+        ),
+        # ── chart_only ───────────────────────────────────────
+        "co_deck_title": "{period} business review ({code})",
+        "co_slide_chart": "Shipments by site",
+        "co_chart_title": "{period} shipments by site",
+        "co_chart_ylabel": "Units shipped",
+        "co_body_caption": "Shipments by site are shown below.",
+        "co_body_total": "For reference, the company-wide total is {total} units.",
+        "co_table_header": "Site | Units shipped",
+        "q_chart_only": (
+            "According to the figure in business review {code}, how many units did "
+            "{site} ship? Answer with the number only."
+        ),
+        # ── layout ───────────────────────────────────────────
+        "ly_doc_title": "{room} seating plan ({code})",
+        "ly_caption": "The seating arrangement is shown below.",
+        "ly_seat_rule": "Row A runs left to right as A-1, A-2, A-3.",
+        "ly_roster_heading": "Occupants (alphabetical)",
+        "ly_table_heading": "Seat assignments",
+        "q_layout": (
+            "In seating plan {code}, who sits in the seat immediately to the right "
+            "of {person}?"
+        ),
+        # ── scanned ──────────────────────────────────────────
+        "sc_title": "Incoming inspection report",
+        "sc_line_code": "Report no.: {code}",
+        "sc_line_site": "Location: {site}",
+        "sc_line_item": "Item: {item}",
+        "sc_line_lot": "Lot number: {lot}",
+        "sc_line_value": "Measured: {value}",
+        "sc_line_judge": "Result: {judge}",
+        "sc_cover_title": "Inspection report cover note ({code})",
+        "sc_cover_body": (
+            "Please find the inspection report enclosed. See the report itself for details."
+        ),
+        "sc_cover_decoy": "Note that the previous lot ({lot}) was judged {judge}.",
+        "q_scanned": "What is the lot number on inspection report {code}?",
+        # ── chart_native ─────────────────────────────────────
+        "cn_sheet_visible": "Report",
+        "cn_sheet_hidden": "_src",
+        "cn_title": "{period} utilisation by site ({code})",
+        "cn_chart_title": "Utilisation by site",
+        "cn_note_caption": "The chart plots the series in the table below.",
+        "cn_note_order_decoy": "(listed order: {order})",
+        "cn_table_heading": "Utilisation by site (reference table)",
+        "q_chart_native": (
+            "In the chart of utilisation report {code}, which site shows the highest "
+            "value in {month}?"
+        ),
+        # ── version ──────────────────────────────────────────
+        "vr_title": "{topic} policy ({code})",
+        "vr_sec_purpose": "Article 1 Purpose",
+        "vr_sec_scope": "Article 2 Scope",
+        "vr_sec_warranty": "Article 3 Warranty period",
+        "vr_sec_misc": "Article 4 Miscellaneous",
+        "vr_body_purpose": "This policy governs the handling of {topic}.",
+        "vr_body_scope": "This policy applies to every {topic} contract the company enters.",
+        "vr_body_warranty": "The warranty period is {months} months from the date of handover.",
+        "vr_body_misc": "Matters not covered here shall be agreed separately.",
+        "vr_index_title": "Policy index ({code})",
+        "vr_index_body": "For the content of {code}, refer to the edition under old/.",
+        "q_version": (
+            "In the current edition of {topic} policy {code}, how many months is the "
+            "warranty period from handover? Answer with the number only."
+        ),
+        # ── locked ───────────────────────────────────────────
+        "lk_archive_name": "settlement.txt",
+        "lk_archive_body": "{code} final settlement: {amount} (confirmed {date})",
+        "lk_rule_title": "Handling of shared files ({code})",
+        "lk_rule_body": (
+            "Settlement data is shared encrypted. The password is the site code in "
+            "upper case, a hyphen, then the confirmation date as YYYYMMDD."
+        ),
+        "lk_ref_title": "{code} case master data",
+        "lk_ref_body": "Site code: {site_code} / Confirmed: {date} / Owner: {department}",
+        "lk_cover_title": "{code} settlement notice",
+        "lk_cover_body": "Please see the attached encrypted file for the final settlement.",
+        "lk_cover_decoy": "(For reference, the preliminary figure was {amount}.)",
+        "q_locked": "What is the final settlement amount for {code}? Answer as a number.",
     },
 )
 
