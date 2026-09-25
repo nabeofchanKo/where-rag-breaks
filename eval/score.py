@@ -94,6 +94,7 @@ def score_rows(
 ) -> pd.DataFrame:
     scored: list[dict] = []
     disagreements = 0
+    judge_blocked_on_decoy = 0
 
     for row in rows:
         item = items[row["qid"]]
@@ -105,13 +106,21 @@ def score_rows(
         judged_by = "exact"
         judge_reason = ""
 
-        # 棄権した回答は判定にかけない（棄権は 0 点であって誤答ではない）
+        took_decoy = matches_decoy(item, candidate)
+
+        # 棄権した回答は判定にかけない（棄権は 0 点であって誤答ではない）。
+        # 囮に一致した回答も judge にかけない。囮は「生成時に確定した誤答」
+        # なので、judge がこれを正解と判定したらそれは judge の誤りである。
+        # 発動回数は scoring_meta.json に記録する（0 なら何も変えていない）。
         if use_judge and not by_exact and not abstained and candidate.strip():
-            by_judge, judge_reason = judge(item, candidate, judge_model)
-            if by_judge:
-                correct = True
-                judged_by = "judge"
-                disagreements += 1
+            if took_decoy:
+                judge_blocked_on_decoy += 1
+            else:
+                by_judge, judge_reason = judge(item, candidate, judge_model)
+                if by_judge:
+                    correct = True
+                    judged_by = "judge"
+                    disagreements += 1
 
         scored.append(
             {
@@ -120,13 +129,14 @@ def score_rows(
                 "judged_by": judged_by,
                 "judge_reason": judge_reason,
                 "answered": bool(candidate.strip()) and not abstained,
-                "answered_decoy": matches_decoy(item, candidate),
+                "answered_decoy": took_decoy,
                 "has_decoy": bool(item.decoys),
             }
         )
 
     frame = pd.DataFrame(scored)
     frame.attrs["judge_disagreements"] = disagreements
+    frame.attrs["judge_blocked_on_decoy"] = judge_blocked_on_decoy
     return frame
 
 
@@ -226,6 +236,7 @@ def main(argv: list[str] | None = None) -> int:
                 "judge_model": None if args.no_judge else judge_model,
                 "judge_system_prompt": None if args.no_judge else JUDGE_SYSTEM,
                 "judge_overrode_exact": disagreements,
+                "judge_blocked_on_decoy": frame.attrs.get("judge_blocked_on_decoy", 0),
                 "n_rows": len(frame),
             },
             ensure_ascii=False,
@@ -256,6 +267,8 @@ def main(argv: list[str] | None = None) -> int:
     print(spread.to_string(index=False))
     print()
     print(f"judge が exact を覆した件数: {disagreements}")
+    print(f"囮に一致したため judge にかけなかった件数: "
+          f"{frame.attrs.get('judge_blocked_on_decoy', 0)}")
     print(f"出力: {out_csv}")
     return 0
 
