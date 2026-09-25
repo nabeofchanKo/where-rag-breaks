@@ -60,7 +60,9 @@ def test_formula_channel_has_all_three_traps(corpus: Path) -> None:
     d3 = by_difficulty[3]
     cached = load_workbook(corpus / "files" / d3.source_files[0], data_only=True)["サマリ"]
     assert cached["B5"].value is not None, "キャッシュ値が注入されていない"
-    assert str(cached["B5"].value) != d3.answer, "キャッシュ値が正解と一致している（囮になっていない）"
+    assert str(cached["B5"].value) != d3.answer, (
+        "キャッシュ値が正解と一致している（囮になっていない）"
+    )
     assert d3.decoys == [str(cached["B5"].value)], "囮が Item に記録されていない"
 
     assert not by_difficulty[1].decoys and not by_difficulty[2].decoys

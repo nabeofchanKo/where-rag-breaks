@@ -50,6 +50,18 @@ def _contains_answer(item: Item, text: str) -> bool:
     return any(normalize_text(a) in haystack for a in item.accepted if a.strip())
 
 
+def _contains_decoy(item: Item, text: str) -> bool:
+    """囮（陳腐化したキャッシュ値など）が窓に入っているか。
+
+    これが 1.0 で ``answer_literal`` が 0.0 のとき、classical には
+    「もっともらしい間違った値だけが見えている」状態になる。
+    """
+    if not item.decoys:
+        return False
+    haystack = normalize_text(text)
+    return any(normalize_text(d) in haystack for d in item.decoys)
+
+
 def probe(
     corpus: Path,
     ks: list[int],
@@ -101,12 +113,14 @@ def probe(
 
 def summarise(frame: pd.DataFrame) -> pd.DataFrame:
     return (
-        frame.groupby(["channel", "k"], dropna=False)
+        frame.groupby(["channel", "difficulty", "k"], dropna=False)
         .agg(
             n=("qid", "count"),
             file_recall=("file_recall", "mean"),
+            source_coverage=("source_coverage", "mean"),
             answer_literal=("answer_literal", "mean"),
             answer_literal_corpus=("answer_literal_corpus", "mean"),
+            decoy_literal=("decoy_literal", "mean"),
         )
         .reset_index()
     )
@@ -140,8 +154,10 @@ def main(argv: list[str] | None = None) -> int:
     print(summary.to_string(index=False))
     print()
     print("file_recall            … 上位 k に答えのあるファイルが入った割合")
+    print("source_coverage        … 対象ファイルのチャンクのうち窓に入った割合")
     print("answer_literal         … 上位 k の本文に正解文字列がそのまま現れた割合")
     print("answer_literal_corpus  … コーパス全体の抽出テキストに現れる割合（k 非依存）")
+    print("decoy_literal          … 囮（陳腐化した値など）が窓に入った割合")
     print()
     print("※ answer_literal が 0 でも、モデルが計算で導ける可能性は残る。")
     print("   これは『答えがそのままの形では存在しない』ことの証拠であり、")
