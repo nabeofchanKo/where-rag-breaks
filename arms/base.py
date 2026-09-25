@@ -72,6 +72,7 @@ class ArmAnswer:
     output_tokens: int = 0
     cost_usd: float = 0.0
     tool_calls: int = 0
+    num_turns: int = 0
     files_opened: list[str] = field(default_factory=list)
 
     # 再現のためのパラメータ

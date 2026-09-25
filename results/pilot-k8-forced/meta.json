@@ -1,0 +1,43 @@
+{
+  "run_id": "pilot-k8-forced",
+  "started_at": "2026-09-25T04:19:19.212579+00:00",
+  "corpus": {
+    "channels": [
+      "formula",
+      "text"
+    ],
+    "generator_version": 1,
+    "locale": "ja",
+    "n_files_requested": 120,
+    "n_files_written": 120,
+    "n_filler_files": 100,
+    "n_questions": 20,
+    "questions_per_channel": 10,
+    "seed": 42
+  },
+  "model": "claude-sonnet-5",
+  "auth": "cli",
+  "arms": [
+    "classical"
+  ],
+  "k_values": [
+    8
+  ],
+  "modes": [
+    "forced"
+  ],
+  "repeats": 1,
+  "n_questions": 20,
+  "arm_config": {
+    "classical": {
+      "n_chunks": 540,
+      "chunk_chars": 1200,
+      "overlap_chars": 200,
+      "embedding_model": "BAAI/bge-m3",
+      "retrieval": "bm25 + dense (RRF)",
+      "reranker": null
+    }
+  },
+  "finished_at": "2026-09-25T04:22:41.617867+00:00",
+  "executed_calls": 12
+}

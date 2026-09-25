@@ -29,7 +29,7 @@ from pathlib import Path
 
 from arms.base import AnswerMode, ArmAnswer
 from arms.classical import ClassicalArm
-from arms.llm import bootstrap, resolve_model
+from arms.llm import bootstrap, resolve_auth, resolve_model
 from gen.common import Item, read_questions_jsonl
 
 ARMS = {"classical": ClassicalArm}
@@ -159,6 +159,10 @@ def main(argv: list[str] | None = None) -> int:
         "started_at": datetime.now(UTC).isoformat(),
         "corpus": corpus_meta,
         "model": resolve_model(),
+        # cli = 契約プランの利用枠を消費（API 従量課金なし）。このとき cost_usd は
+        # 実請求額ではなく定価換算の参考値である。アーム間の比較には使えるが、
+        # 「いくら払ったか」としては読めない。
+        "auth": resolve_auth(),
         "arms": arm_names,
         "k_values": ks,
         "modes": modes,
@@ -186,7 +190,17 @@ def main(argv: list[str] | None = None) -> int:
                             key = _key(item.qid, arm_name, mode, k, repeat)
                             if key in done:
                                 continue
-                            out = arm.answer(item.question, mode)  # type: ignore[arg-type]
+                            # 1 件の失敗で数百回ぶんのスイープを落とさない。
+                            # 失敗も「そのアームの性能」なので記録して先へ進む。
+                            try:
+                                out = arm.answer(item.question, mode)  # type: ignore[arg-type]
+                            except Exception as exc:  # noqa: BLE001
+                                out = ArmAnswer(
+                                    answer="",
+                                    abstained=True,
+                                    k=k,
+                                    error=f"{type(exc).__name__}: {exc}",
+                                )
                             row = _row(item, arm_name, mode, repeat, run_id, seed, out)
                             sink.write(json.dumps(row, ensure_ascii=False) + "\n")
                             sink.flush()  # 途中で落ちても再開できるように毎回流す
