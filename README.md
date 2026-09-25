@@ -144,7 +144,13 @@ uv run python -m eval.retrieval_probe --corpus corpus/ --k 4,8,16,32
 # アームを走らせる（LLM を呼ぶ。認証が要る）
 uv run python -m eval.run --corpus corpus/ --arms classical --k 4,8,16
 uv run python -m eval.score --run results/<run_id>
+uv run python -m eval.report --run results/<run_id>
 ```
+
+**認証について**: 既定は `WRB_AUTH=cli` で、`claude` CLI のログイン認証（契約プランの枠）を
+使う。API の従量課金は発生しない。`.env` に `ANTHROPIC_API_KEY` が置いてあっても、
+cli モードでは**環境から明示的に外す**（置いたままだと SDK がそちらを優先して
+静かに従量課金へ切り替わるため）。API を使いたい場合は `WRB_AUTH=api` を指定する。
 
 Windows でこのリポジトリを動かすときに踏んだ罠は
 [docs/environment-notes.md](docs/environment-notes.md) にまとめてある。
@@ -298,7 +304,14 @@ uv run python -m eval.retrieval_probe --corpus corpus/ --k 4,8,16,32
 # Run the arms (calls the LLM; needs credentials)
 uv run python -m eval.run --corpus corpus/ --arms classical --k 4,8,16
 uv run python -m eval.score --run results/<run_id>
+uv run python -m eval.report --run results/<run_id>
 ```
+
+**On authentication**: the default is `WRB_AUTH=cli`, which uses the `claude` CLI login
+(your subscription allowance) and incurs no metered API billing. In cli mode an
+`ANTHROPIC_API_KEY` sitting in `.env` is **actively removed from the environment**,
+because leaving it there makes the SDK prefer it and quietly switch to metered
+billing. Set `WRB_AUTH=api` when you do want the API.
 
 The Windows-specific traps hit while building this are written up in
 [docs/environment-notes.md](docs/environment-notes.md).
