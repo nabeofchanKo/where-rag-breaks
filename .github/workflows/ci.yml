@@ -1,0 +1,56 @@
+# このリポジトリの CI は **API キーを一切必要としない** 範囲だけを回す。
+#
+# 理由:
+#   - LLM を叩くアーム実行（eval/run.py）は課金が発生し、非決定でもある。
+#     CI の赤/緑をモデルの機嫌に左右させない。
+#   - キー不要にしておけば fork からの PR でも CI が通り、公開リポジトリとして
+#     再現性の主張が成立する。
+#
+# ここで守るのは 2 つ:
+#   1. 同 seed で再生成したコーパスがバイト一致する（SPEC §8 P0 の完了条件）
+#   2. 答えがファイル名・設問文・カタログに漏れていない（SPEC §11）
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: uv をセットアップ
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: 依存をインストール（アーム用の重い依存は入れない）
+        run: uv sync --no-default-groups --group dev
+
+      - name: Lint (ruff)
+        run: uv run ruff check .
+
+      - name: テスト（決定性・ASCIIパス・正解ラベルの存在）
+        run: uv run pytest
+
+      - name: コーパスを生成する
+        run: uv run python -m gen --seed 42 --files 40 --out corpus/
+
+      - name: 漏洩検査（SPEC §11）
+        run: uv run python -m eval.leak_check --corpus corpus/
+
+      - name: 英語コーパスでも生成と漏洩検査が通ること
+        run: |
+          uv run python -m gen --seed 42 --files 40 --locale en --out corpus-en/
+          uv run python -m eval.leak_check --corpus corpus-en/
