@@ -1,0 +1,3 @@
+﻿arm,mode,channel,k,total,correct,incorrect,answered,accuracy,penalized,answer_rate,precision,decoy_rate
+classical,abstain_ok,version,8,18.0,6.0,0.0,6.0,0.3333333333333333,0.3333333333333333,0.3333333333333333,1.0,0.0
+classical,forced,version,8,18.0,14.0,3.0,17.0,0.7777777777777778,0.6111111111111112,0.9444444444444444,0.8235294117647058,0.16666666666666666

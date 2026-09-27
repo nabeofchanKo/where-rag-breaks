@@ -1,0 +1,53 @@
+{
+  "run_id": "p1-version-v2-k8",
+  "started_at": "2026-09-27T21:17:47.262906+00:00",
+  "corpus": {
+    "channels": [
+      "chart_native",
+      "chart_only",
+      "cross_file",
+      "format",
+      "formula",
+      "hidden",
+      "layout",
+      "locked",
+      "scanned",
+      "text",
+      "version"
+    ],
+    "generator_version": 2,
+    "locale": "ja",
+    "n_files_requested": 250,
+    "n_files_written": 311,
+    "n_filler_files": 163,
+    "n_questions": 66,
+    "questions_per_channel": 6,
+    "seed": 42
+  },
+  "model": "claude-sonnet-5",
+  "auth": "cli",
+  "arms": [
+    "classical"
+  ],
+  "k_values": [
+    8
+  ],
+  "modes": [
+    "forced",
+    "abstain_ok"
+  ],
+  "repeats": 3,
+  "n_questions": 6,
+  "arm_config": {
+    "classical": {
+      "n_chunks": 664,
+      "chunk_chars": 1200,
+      "overlap_chars": 200,
+      "embedding_model": "BAAI/bge-m3",
+      "retrieval": "bm25 + dense (RRF)",
+      "reranker": null
+    }
+  },
+  "finished_at": "2026-09-27T21:35:57.917257+00:00",
+  "executed_calls": 36
+}
