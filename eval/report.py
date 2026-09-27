@@ -76,28 +76,36 @@ def _save(fig: plt.Figure, path: Path) -> None:
 
 # ── 1. チャネル別ヒートマップ（主成果物）──────────────────────────
 def channel_heatmap(frame: pd.DataFrame, out: Path, lab: Labels, mode: str) -> Path:
-    """チャネル×難易度 を行、アームを列にした正答率ヒートマップ。
+    """行=チャネル、列=アーム×難易度 の正答率ヒートマップ。
 
     SPEC §6-1 はチャネル×アームだが、難易度が「罠の機構」そのものなので
-    行を (channel, difficulty) にして機構ごとの効き方が見えるようにしてある。
+    列を (arm, difficulty) にして機構ごとの効き方が見えるようにしてある。
+
+    ★ 行に (channel, difficulty) を積むと 33 行の縦長になって読めない。
+      チャネルを行、難易度を列に置くと **同じ行の中で段の落ち方**が並ぶので、
+      「コントロール段は緑・罠の段は赤」という主張が一目で分かる。
     """
     subset = frame[frame["mode"] == mode]
     pivot = (
-        subset.groupby(["channel", "difficulty", "arm"])["correct"]
+        subset.groupby(["channel", "arm", "difficulty"])["correct"]
         .mean()
-        .unstack("arm")
+        .unstack(["arm", "difficulty"])
         .sort_index()
     )
+    pivot = pivot.reindex(sorted(pivot.columns), axis=1)
 
-    fig, ax = plt.subplots(figsize=(2.2 + 1.6 * len(pivot.columns), 0.6 * len(pivot) + 2.2))
+    arms = sorted({arm for arm, _ in pivot.columns})
+    labels = [
+        (f"難易度{d}" if lab.ja else f"tier {d}") if len(arms) == 1 else f"{arm}\n{d}"
+        for arm, d in pivot.columns
+    ]
+
+    fig, ax = plt.subplots(figsize=(2.6 + 1.3 * len(pivot.columns), 0.45 * len(pivot) + 2.4))
     data = pivot.to_numpy(dtype=float)
     im = ax.imshow(data, cmap="RdYlGn", vmin=0.0, vmax=1.0, aspect="auto")
 
-    ax.set_xticks(range(len(pivot.columns)), pivot.columns)
-    ax.set_yticks(
-        range(len(pivot)),
-        [f"{ch}  (難易度 {d})" if lab.ja else f"{ch}  (tier {d})" for ch, d in pivot.index],
-    )
+    ax.set_xticks(range(len(pivot.columns)), labels)
+    ax.set_yticks(range(len(pivot)), list(pivot.index))
     for i in range(data.shape[0]):
         for j in range(data.shape[1]):
             value = data[i, j]
@@ -119,7 +127,8 @@ def channel_heatmap(frame: pd.DataFrame, out: Path, lab: Labels, mode: str) -> P
         )
     )
     fig.colorbar(im, ax=ax, label=lab("正答率", "accuracy"))
-    path = out / "channel_heatmap.png"
+    suffix = "" if mode == "forced" else f"_{mode}"
+    path = out / f"channel_heatmap{suffix}.png"
     _save(fig, path)
     return path
 
@@ -320,10 +329,11 @@ def main(argv: list[str] | None = None) -> int:
         print("⚠️ 日本語フォントが見つからないため、図のラベルは英語で出力する")
 
     figures_dir = args.run / "figures"
-    figures = [
-        channel_heatmap(frame, figures_dir, lab, args.mode),
-        cost_accuracy(frame, figures_dir, lab, meta.get("auth", "")),
-    ]
+    figures = []
+    # 棄権あり／なしの対比がこのベンチマークの主張の核なので、両方出す。
+    for mode in sorted(frame["mode"].unique(), key=lambda m: m != args.mode):
+        figures.append(channel_heatmap(frame, figures_dir, lab, mode))
+    figures.append(cost_accuracy(frame, figures_dir, lab, meta.get("auth", "")))
     report = write_markdown(args.run, frame, meta, figures)
 
     for path in [*figures, report]:
