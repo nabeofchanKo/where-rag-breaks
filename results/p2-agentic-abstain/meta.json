@@ -54,5 +54,12 @@
       "max_turns": 40,
       "mirror_extractor": "arms.classical.extract"
     }
-  }
+  },
+  "k_values_per_arm": {
+    "agentic": [
+      null
+    ]
+  },
+  "finished_at": "2026-09-28T17:18:26.665060+00:00",
+  "executed_calls": 198
 }

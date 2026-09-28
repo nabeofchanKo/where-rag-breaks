@@ -232,10 +232,16 @@ def cost_accuracy(frame: pd.DataFrame, out: Path, lab: Labels, auth: str) -> Pat
     return path
 
 
+# 「同じ測定」を決めるキー。★ mode を落としてはいけない。
+# 落とすと、強制回答モードの run が棄権モードの run に上書きされて消える
+# （実測でそうなった。上書きを必ず出力する仕様にしていたおかげで気づけた）。
+OVERLAP_KEY = ["arm", "channel", "mode"]
+
+
 def _resolve_overlaps(
     frame: pd.DataFrame, order: list[str]
 ) -> tuple[pd.DataFrame, list[tuple[str, str, str, str]]]:
-    """同じ (アーム, チャネル) が複数の run にあるとき、**後の run を採る**。
+    """同じ (アーム, チャネル, モード) が複数の run にあるとき、**後の run を採る**。
 
     ★ なぜ必要か:
         チャネルの設計を直して測り直すと、同じアーム・同じチャネルの結果が
@@ -251,7 +257,8 @@ def _resolve_overlaps(
 
     overridden: list[tuple[str, str, str, str]] = []
     keep_index: list[int] = []
-    for (arm, channel), group in frame.groupby(["arm", "channel"], dropna=False):
+    for key, group in frame.groupby(OVERLAP_KEY, dropna=False):
+        arm, channel, mode = key
         best = group["_rank"].max()
         winners = group[group["_rank"] == best]
         losers = group[group["_rank"] != best]
@@ -259,7 +266,7 @@ def _resolve_overlaps(
             overridden.append(
                 (
                     str(arm),
-                    str(channel),
+                    f"{channel}/{mode}",
                     ", ".join(sorted(losers["run_id"].unique())),
                     ", ".join(sorted(winners["run_id"].unique())),
                 )
@@ -308,6 +315,7 @@ def abstention_map(frame: pd.DataFrame, out: Path, lab: Labels) -> Path:
     markers = ("o", "s", "^", "D")
     # 同じ座標に複数チャネルが重なるので、ラベルは縦にずらす
     stagger: dict[tuple[float, float], int] = {}
+    perfect: list[str] = []
     for index, arm in enumerate(sorted(plotted["arm"].unique())):
         part = plotted[plotted["arm"] == arm]
         ax.scatter(
@@ -319,6 +327,12 @@ def abstention_map(frame: pd.DataFrame, out: Path, lab: Labels) -> Path:
             alpha=0.75,
         )
         for _, row in part.iterrows():
+            # ★ (1.0, 1.0) は「全部答えて全部当てた」理想点。ここに十数個の
+            #   チャネルが重なってラベルが読めなくなるので、個別注記はせず
+            #   図の下にまとめて名前を出す。見たいのは**そこから外れた点**。
+            if row["answer_rate"] >= 0.999 and row["precision"] >= 0.999:
+                perfect.append(f"{row['channel']}({row['arm'][:3]})")
+                continue
             spot = (round(float(row["answer_rate"]), 2), round(float(row["precision"]), 2))
             level = stagger.get(spot, 0)
             stagger[spot] = level + 1
@@ -354,6 +368,18 @@ def abstention_map(frame: pd.DataFrame, out: Path, lab: Labels) -> Path:
         names = ", ".join(f"{r.channel}({r.arm[:3]})" for r in silent.itertuples())
         title += "\n" + lab(f"一度も答えなかった: {names}", f"never answered: {names}")
     ax.set_title(title, fontsize=11)
+    if perfect:
+        fig.text(
+            0.5,
+            -0.02,
+            lab(
+                f"全問答えて全問正解（右上の点）: {', '.join(sorted(perfect))}",
+                f"answered everything, all correct (top right): {', '.join(sorted(perfect))}",
+            ),
+            ha="center",
+            fontsize=8,
+            wrap=True,
+        )
     path = out / "abstention_map.png"
     _save(fig, path)
     return path

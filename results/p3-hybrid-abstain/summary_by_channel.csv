@@ -1,0 +1,12 @@
+﻿arm,mode,channel,total,correct,incorrect,answered,accuracy,penalized,answer_rate,precision,decoy_rate
+hybrid,abstain_ok,chart_native,18.0,12.0,1.0,13.0,0.6666666666666666,0.6111111111111112,0.7222222222222222,0.9230769230769231,0.16666666666666666
+hybrid,abstain_ok,chart_only,18.0,18.0,0.0,18.0,1.0,1.0,1.0,1.0,0.0
+hybrid,abstain_ok,cross_file,18.0,18.0,0.0,18.0,1.0,1.0,1.0,1.0,0.0
+hybrid,abstain_ok,format,18.0,18.0,0.0,18.0,1.0,1.0,1.0,1.0,0.0
+hybrid,abstain_ok,formula,18.0,12.0,6.0,18.0,0.6666666666666666,0.3333333333333333,1.0,0.6666666666666666,1.0
+hybrid,abstain_ok,hidden,18.0,18.0,0.0,18.0,1.0,1.0,1.0,1.0,0.0
+hybrid,abstain_ok,layout,18.0,18.0,0.0,18.0,1.0,1.0,1.0,1.0,0.0
+hybrid,abstain_ok,locked,18.0,18.0,0.0,18.0,1.0,1.0,1.0,1.0,0.0
+hybrid,abstain_ok,scanned,18.0,18.0,0.0,18.0,1.0,1.0,1.0,1.0,0.0
+hybrid,abstain_ok,text,18.0,18.0,0.0,18.0,1.0,1.0,1.0,1.0,
+hybrid,abstain_ok,version,18.0,11.0,7.0,18.0,0.6111111111111112,0.2222222222222222,1.0,0.6111111111111112,0.3888888888888889

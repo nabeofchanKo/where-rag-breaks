@@ -1,0 +1,12 @@
+﻿arm,mode,channel,accuracy_mean,accuracy_min,accuracy_max,n_repeats
+hybrid,abstain_ok,chart_native,0.6666666666666666,0.5,1.0,3
+hybrid,abstain_ok,chart_only,1.0,1.0,1.0,3
+hybrid,abstain_ok,cross_file,1.0,1.0,1.0,3
+hybrid,abstain_ok,format,1.0,1.0,1.0,3
+hybrid,abstain_ok,formula,0.6666666666666666,0.6666666666666666,0.6666666666666666,3
+hybrid,abstain_ok,hidden,1.0,1.0,1.0,3
+hybrid,abstain_ok,layout,1.0,1.0,1.0,3
+hybrid,abstain_ok,locked,1.0,1.0,1.0,3
+hybrid,abstain_ok,scanned,1.0,1.0,1.0,3
+hybrid,abstain_ok,text,1.0,1.0,1.0,3
+hybrid,abstain_ok,version,0.611111111111111,0.5,0.6666666666666666,3
