@@ -30,10 +30,11 @@ from pathlib import Path
 from arms.agentic import AgenticArm
 from arms.base import AnswerMode, ArmAnswer
 from arms.classical import ClassicalArm
+from arms.hybrid import HybridArm
 from arms.llm import bootstrap, resolve_auth, resolve_model
 from gen.common import Item, read_questions_jsonl
 
-ARMS = {"classical": ClassicalArm, "agentic": AgenticArm}
+ARMS = {"classical": ClassicalArm, "agentic": AgenticArm, "hybrid": HybridArm}
 DEFAULT_K = (4, 8, 16)
 DEFAULT_REPEATS = 3
 MODES: tuple[AnswerMode, ...] = ("abstain_ok", "forced")
