@@ -269,7 +269,97 @@ def _resolve_overlaps(
     return frame.loc[sorted(keep_index)].drop(columns="_rank"), overridden
 
 
-# ── 3. markdown レポート ───────────────────────────────────────────
+# ── 3. 棄権の図 ───────────────────────────────────────────────────
+def abstention_map(frame: pd.DataFrame, out: Path, lab: Labels) -> Path:
+    """横軸=答えた率、縦軸=答えたうちの正答率（precision）。
+
+    ★ **棄権ありモードは正答率だけ見ても読めない。**
+    低い accuracy が「黙ったから」なのか「間違えたから」なのか区別が付かない。
+    この 2 軸なら一目で分かる。
+
+        右上  … 答えてよく当てている（理想）
+        左上  … 分かるときだけ答えている（安全側。損失に気づけている）
+        右下  … **答えているのに外す。気づけていない。いちばん危険**
+        左下  … 答えず外す（棄権の中に誤答が混じる、まれ）
+    """
+    subset = frame[frame["mode"] == "abstain_ok"]
+    if subset.empty:
+        return out / "abstention_map.png"
+
+    grouped = (
+        subset.groupby(["arm", "channel"])
+        .agg(
+            answer_rate=("answered", "mean"),
+            correct=("correct", "sum"),
+            answered=("answered", "sum"),
+        )
+        .reset_index()
+    )
+    grouped["precision"] = grouped.apply(
+        lambda r: r["correct"] / r["answered"] if r["answered"] else float("nan"), axis=1
+    )
+
+    # 一度も答えなかったチャネルは precision が定義できない。散布図から
+    # 消えると「測っていない」ように見えるので、別立てで必ず名前を出す。
+    silent = grouped[grouped["answered"] == 0]
+    plotted = grouped[grouped["answered"] > 0]
+
+    fig, ax = plt.subplots(figsize=(9.5, 6.5))
+    markers = ("o", "s", "^", "D")
+    # 同じ座標に複数チャネルが重なるので、ラベルは縦にずらす
+    stagger: dict[tuple[float, float], int] = {}
+    for index, arm in enumerate(sorted(plotted["arm"].unique())):
+        part = plotted[plotted["arm"] == arm]
+        ax.scatter(
+            part["answer_rate"],
+            part["precision"],
+            label=arm,
+            marker=markers[index % len(markers)],
+            s=90,
+            alpha=0.75,
+        )
+        for _, row in part.iterrows():
+            spot = (round(float(row["answer_rate"]), 2), round(float(row["precision"]), 2))
+            level = stagger.get(spot, 0)
+            stagger[spot] = level + 1
+            ax.annotate(
+                f"{row['channel']} ({row['arm'][:3]})",
+                (row["answer_rate"], row["precision"]),
+                textcoords="offset points",
+                xytext=(8, 4 - level * 11),
+                fontsize=7.5,
+            )
+
+    ax.axhspan(-0.05, 0.5, xmin=0.5, color="#d62728", alpha=0.06)
+    ax.text(
+        0.98,
+        0.02,
+        lab("答えているのに外す領域", "answers and is wrong"),
+        transform=ax.transAxes,
+        ha="right",
+        fontsize=9,
+        color="#d62728",
+    )
+    ax.set_xlabel(lab("答えた率（answer_rate）", "answer rate"))
+    ax.set_ylabel(lab("答えたうちの正答率（precision）", "precision among answered"))
+    ax.set_xlim(-0.05, 1.08)
+    ax.set_ylim(-0.05, 1.08)
+    ax.grid(alpha=0.3)
+    ax.legend(title=lab("アーム", "arm"))
+    title = lab(
+        "棄権ありモード: 黙ったのか、外したのか",
+        "Abstention mode: declined, or answered and wrong?",
+    )
+    if not silent.empty:
+        names = ", ".join(f"{r.channel}({r.arm[:3]})" for r in silent.itertuples())
+        title += "\n" + lab(f"一度も答えなかった: {names}", f"never answered: {names}")
+    ax.set_title(title, fontsize=11)
+    path = out / "abstention_map.png"
+    _save(fig, path)
+    return path
+
+
+# ── 4. markdown レポート ───────────────────────────────────────────
 def write_markdown(run: Path, frame: pd.DataFrame, meta: dict, figures: list[Path]) -> Path:
     from eval.score import best_k_per_channel, summarise, summarise_with_spread
 
@@ -430,6 +520,8 @@ def main(argv: list[str] | None = None) -> int:
     for mode in sorted(frame["mode"].unique(), key=lambda m: m != args.mode):
         figures.append(channel_heatmap(frame, figures_dir, lab, mode))
     figures.append(cost_accuracy(frame, figures_dir, lab, meta.get("auth", "")))
+    if (frame["mode"] == "abstain_ok").any():
+        figures.append(abstention_map(frame, figures_dir, lab))
     report = write_markdown(out_dir, frame, meta, figures)
 
     for path in [*figures, report]:

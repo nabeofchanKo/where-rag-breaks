@@ -1,0 +1,58 @@
+{
+  "run_id": "p2-agentic-abstain",
+  "started_at": "2026-09-28T14:23:37.563619+00:00",
+  "corpus": {
+    "channels": [
+      "chart_native",
+      "chart_only",
+      "cross_file",
+      "format",
+      "formula",
+      "hidden",
+      "layout",
+      "locked",
+      "scanned",
+      "text",
+      "version"
+    ],
+    "generator_version": 2,
+    "locale": "ja",
+    "n_files_requested": 250,
+    "n_files_written": 311,
+    "n_filler_files": 163,
+    "n_questions": 66,
+    "questions_per_channel": 6,
+    "seed": 42
+  },
+  "model": "claude-sonnet-5",
+  "auth": "cli",
+  "arms": [
+    "agentic"
+  ],
+  "k_values": [
+    4,
+    8,
+    16
+  ],
+  "modes": [
+    "abstain_ok"
+  ],
+  "repeats": 3,
+  "n_questions": 66,
+  "arm_config": {
+    "agentic": {
+      "index": "catalog + markdown mirror",
+      "n_files": 320,
+      "n_mirrored": 255,
+      "tools": [
+        "mcp__wrb__list_files",
+        "mcp__wrb__read_file",
+        "mcp__wrb__grep",
+        "mcp__wrb__run_python",
+        "mcp__wrb__view_image"
+      ],
+      "max_turns": 40,
+      "mirror_extractor": "arms.classical.extract"
+    }
+  }
+}
