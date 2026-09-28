@@ -55,6 +55,43 @@ def _paths_of(corpus: Path) -> list[str]:
     return sorted(seen)
 
 
+def _catalog_leaks(item: Item, catalog: str, answer: str) -> list[Leak]:
+    """カタログへの漏洩を検査する。
+
+    ★ **カタログ全体への単純な部分一致では検査にならない。**
+    カタログは全ファイルの見出しを並べたものなので、氏名や拠点名のように
+    語彙を共有する答えは、**無関係な別ファイルの見出し**に同じ文字列が
+    出ているだけで一致してしまう（実測: 311ファイルのカタログで
+    `横浜工場` などが 6 問ぶん誤検知した）。それは答えの特定に使えないので
+    漏洩ではない。
+
+    意味のある漏洩は 2 つ:
+
+    1. **答えを持つファイル自身の行**に答えが書いてある
+       → そのファイルを開かずに答えが分かる。本物の抜け道
+    2. 数値・識別子のように**偶然一致しない型**の答えが、カタログの
+       どこかに現れる → 出所がどこであれ拾えてしまう
+    """
+    leaks: list[Leak] = []
+    sources = set(item.source_files)
+    for line in catalog.split("\n"):
+        if any(src in line for src in sources) and answer in normalize_text(line):
+            leaks.append(
+                Leak(item.qid, "catalog", f"答え {item.answer!r} がソースファイルの行に出ている")
+            )
+            break
+
+    if item.answer_type in ("number", "identifier") and answer in normalize_text(catalog):
+        leaks.append(
+            Leak(
+                item.qid,
+                "catalog",
+                f"答え {item.answer!r}（{item.answer_type}）がカタログに出ている",
+            )
+        )
+    return leaks
+
+
 def _check_item(item: Item, paths: list[str], catalog: str | None) -> list[Leak]:
     leaks: list[Leak] = []
     answer = normalize_text(item.answer)
@@ -66,8 +103,8 @@ def _check_item(item: Item, paths: list[str], catalog: str | None) -> list[Leak]
                     Leak(item.qid, "filename", f"答え {item.answer!r} がパス {path!r} に出ている")
                 )
 
-        if catalog is not None and answer in normalize_text(catalog):
-            leaks.append(Leak(item.qid, "catalog", f"答え {item.answer!r} がカタログに出ている"))
+        if catalog is not None:
+            leaks.extend(_catalog_leaks(item, catalog, answer))
 
         if answer in normalize_text(item.question):
             leaks.append(Leak(item.qid, "question", f"答え {item.answer!r} が設問文に出ている"))

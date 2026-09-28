@@ -27,12 +27,13 @@ from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 
+from arms.agentic import AgenticArm
 from arms.base import AnswerMode, ArmAnswer
 from arms.classical import ClassicalArm
 from arms.llm import bootstrap, resolve_auth, resolve_model
 from gen.common import Item, read_questions_jsonl
 
-ARMS = {"classical": ClassicalArm}
+ARMS = {"classical": ClassicalArm, "agentic": AgenticArm}
 DEFAULT_K = (4, 8, 16)
 DEFAULT_REPEATS = 3
 MODES: tuple[AnswerMode, ...] = ("abstain_ok", "forced")
@@ -144,7 +145,13 @@ def main(argv: list[str] | None = None) -> int:
     raw_path = run_dir / "raw.jsonl"
     done = _load_done(raw_path)
 
-    planned = len(items) * len(arm_names) * len(modes) * len(ks) * args.repeats
+    planned = sum(
+        len(items)
+        * len(modes)
+        * args.repeats
+        * (len(ks) if getattr(ARMS[name], "sweeps_k", True) else 1)
+        for name in arm_names
+    )
     print(f"run_id       : {run_id}")
     print(f"設問         : {len(items)} 問")
     print(f"アーム       : {', '.join(arm_names)}")
@@ -182,8 +189,16 @@ def main(argv: list[str] | None = None) -> int:
                 newline="\n",
             )
 
-            for k in ks:
-                arm.reindex_for_k(k)
+            # k を持たないアーム（Arm B）で k をスイープすると、同じ設定を
+            # 何度も実行するだけになる。アーム側の宣言を見て畳む。
+            arm_ks: list[int | None] = list(ks) if getattr(arm, "sweeps_k", True) else [None]
+            if arm_ks != list(ks):
+                print(f"  ({arm_name} は k を持たないため k スイープを畳んだ)")
+            meta.setdefault("k_values_per_arm", {})[arm_name] = arm_ks
+
+            for k in arm_ks:
+                if k is not None:
+                    arm.reindex_for_k(k)
                 for mode in modes:
                     for repeat in range(args.repeats):
                         for item in items:
@@ -205,8 +220,10 @@ def main(argv: list[str] | None = None) -> int:
                             sink.write(json.dumps(row, ensure_ascii=False) + "\n")
                             sink.flush()  # 途中で落ちても再開できるように毎回流す
                             executed += 1
+                            # k を持たないアームでは k が None になる
+                            shown_k = "-" if k is None else str(k)
                             print(
-                                f"  [{executed:4d}] {arm_name} k={k:<3} {mode:<10} "
+                                f"  [{executed:4d}] {arm_name} k={shown_k:<3} {mode:<10} "
                                 f"r{repeat} {item.qid:<12} -> {out.answer[:40]!r}"
                                 + ("  ⚠️" if out.error else "")
                             )
@@ -217,19 +234,29 @@ def main(argv: list[str] | None = None) -> int:
         json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n"
     )
 
-    # ── 密閉性の検証（SPEC §4-2: Arm A はツールなし）────────────
-    # tool_results > 0 は「ツールが実際に結果を返した」ということ。
-    # Arm A ではこれが 0 でなければ測定として無効なので、必ず表示する。
-    leaked = sum(
-        json.loads(line).get("tool_results", 0)
-        for line in raw_path.read_text(encoding="utf-8").splitlines()
-        if line
-    )
+    # ── 道具の使われ方の検証（SPEC §4-2）────────────────────────
+    # ★ 検査の向きはアームごとに違う。
+    #     道具を使わないアーム（Arm A）で道具が結果を返した
+    #       → 定義が破れている。測定として無効
+    #     道具を使うアーム（Arm B）で一度も返っていない
+    #       → 道具が渡っていない。設定ミス
+    #   どちらも黙って通すと、後から数字だけ見ても気づけない。
+    rows = [json.loads(line) for line in raw_path.read_text(encoding="utf-8").splitlines() if line]
     print()
-    if leaked:
-        print(f"⚠️  ツールが結果を返した回数: {leaked} — Arm A の定義が破れている。調査が必要")
-    else:
-        print("✅ ツールが結果を返した回数: 0（Arm A はツールなしで動作した）")
+    for arm_name in arm_names:
+        mine = [r for r in rows if r["arm"] == arm_name]
+        if not mine:
+            continue
+        returned = sum(r.get("tool_results", 0) for r in mine)
+        expects_tools = getattr(ARMS[arm_name], "uses_tools", False)
+        if expects_tools and returned == 0:
+            print(f"⚠️  {arm_name}: 道具が一度も結果を返していない。設定ミスの疑い")
+        elif not expects_tools and returned:
+            print(f"⚠️  {arm_name}: 道具が {returned} 回結果を返した。定義が破れている")
+        elif expects_tools:
+            print(f"✅ {arm_name}: 道具が結果を返した回数 {returned}（道具を使うアーム）")
+        else:
+            print(f"✅ {arm_name}: 道具が結果を返した回数 0（道具なしで動作した）")
     print(f"完了: {executed} 回実行 → {raw_path}")
     print(f"採点: uv run python -m eval.score --run {run_dir}")
     return 0

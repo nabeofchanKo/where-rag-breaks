@@ -152,6 +152,7 @@ async def _run(
     allowed_tools: list[str],
     cwd: Path | None,
     max_turns: int,
+    mcp_servers: dict | None,
 ) -> LLMResult:
     options = ClaudeAgentOptions(
         system_prompt=system_prompt,
@@ -171,7 +172,8 @@ async def _run(
         #   サブプロセスに現れていた。許可は下りなかったのでデータは
         #   漏れていないが、往復を1回余計に消費し、1件は max_turns 超過で
         #   落ちた。詳細は docs/environment-notes.md。
-        mcp_servers={},  # MCP サーバを一切読み込まない
+        # 自前で定義したツールだけを渡す（Arm B / C）。空なら一切無し（Arm A）。
+        mcp_servers=mcp_servers or {},
         strict_mcp_config=True,  # 外部の MCP 設定ファイルを無視する
         setting_sources=None,  # ユーザーの CLAUDE.md や settings.json を読まない
         skills=None,  # スキルを読み込まない
@@ -245,6 +247,7 @@ def complete(
     allowed_tools: list[str] | None = None,
     cwd: Path | None = None,
     max_turns: int = 2,
+    mcp_servers: dict | None = None,
 ) -> LLMResult:
     """LLM を 1 invoke 呼ぶ（同期 API）。
 
@@ -266,6 +269,7 @@ def complete(
             allowed_tools=allowed_tools or [],
             cwd=cwd,
             max_turns=max_turns,
+            mcp_servers=mcp_servers,
         )
     )
 

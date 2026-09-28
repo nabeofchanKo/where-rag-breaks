@@ -95,9 +95,9 @@ def channel_heatmap(frame: pd.DataFrame, out: Path, lab: Labels, mode: str) -> P
     pivot = pivot.reindex(sorted(pivot.columns), axis=1)
 
     arms = sorted({arm for arm, _ in pivot.columns})
+    tier = (lambda d: f"難易度{d}") if lab.ja else (lambda d: f"tier {d}")
     labels = [
-        (f"難易度{d}" if lab.ja else f"tier {d}") if len(arms) == 1 else f"{arm}\n{d}"
-        for arm, d in pivot.columns
+        tier(d) if len(arms) == 1 else f"{arm}\n{tier(d)}" for arm, d in pivot.columns
     ]
 
     fig, ax = plt.subplots(figsize=(2.6 + 1.3 * len(pivot.columns), 0.45 * len(pivot) + 2.4))
@@ -106,6 +106,11 @@ def channel_heatmap(frame: pd.DataFrame, out: Path, lab: Labels, mode: str) -> P
 
     ax.set_xticks(range(len(pivot.columns)), labels)
     ax.set_yticks(range(len(pivot)), list(pivot.index))
+
+    # アームの切れ目に縦線を入れる。どこまでが同じアームか一目で分かるように。
+    for index in range(1, len(pivot.columns)):
+        if pivot.columns[index][0] != pivot.columns[index - 1][0]:
+            ax.axvline(index - 0.5, color="white", linewidth=3)
     for i in range(data.shape[0]):
         for j in range(data.shape[1]):
             value = data[i, j]
@@ -134,15 +139,17 @@ def channel_heatmap(frame: pd.DataFrame, out: Path, lab: Labels, mode: str) -> P
 
 
 # ── 2. コスト × 正答率 ─────────────────────────────────────────────
-def estimate_cli_overhead(frame: pd.DataFrame) -> int:
+def estimate_cli_overhead(frame: pd.DataFrame) -> int:  # noqa: D401
     """1 呼出あたりの固定オーバーヘッドを run 自体から推定する。
 
     ``input_tokens ≈ a + b×k`` の切片 a を採る。k が 1 種類しかない run では
     回帰できないので、観測された最小 input_tokens を上限として使う。
     """
+    usable = frame.dropna(subset=["k"])
     observed_min = int(frame["input_tokens"].min())
-    if frame["k"].nunique() < 2:
+    if usable.empty or usable["k"].nunique() < 2:
         return observed_min
+    frame = usable
     slope, intercept = np.polyfit(
         frame["k"].to_numpy(float), frame["input_tokens"].to_numpy(float), 1
     )
@@ -225,6 +232,43 @@ def cost_accuracy(frame: pd.DataFrame, out: Path, lab: Labels, auth: str) -> Pat
     return path
 
 
+def _resolve_overlaps(
+    frame: pd.DataFrame, order: list[str]
+) -> tuple[pd.DataFrame, list[tuple[str, str, str, str]]]:
+    """同じ (アーム, チャネル) が複数の run にあるとき、**後の run を採る**。
+
+    ★ なぜ必要か:
+        チャネルの設計を直して測り直すと、同じアーム・同じチャネルの結果が
+        古い run と新しい run の両方に残る。素朴に連結すると新旧が混ざった
+        平均になり、**どちらの設計の数字なのか分からない図**ができる。
+
+        `--also` に渡した順を優先度とし、後に指定した run が上書きする。
+        上書きが起きたら必ず標準出力に出す（黙って捨てない）。
+    """
+    rank = {name: index for index, name in enumerate(order)}
+    frame = frame.copy()
+    frame["_rank"] = frame["run_id"].map(lambda r: rank.get(r, -1))
+
+    overridden: list[tuple[str, str, str, str]] = []
+    keep_index: list[int] = []
+    for (arm, channel), group in frame.groupby(["arm", "channel"], dropna=False):
+        best = group["_rank"].max()
+        winners = group[group["_rank"] == best]
+        losers = group[group["_rank"] != best]
+        if not losers.empty:
+            overridden.append(
+                (
+                    str(arm),
+                    str(channel),
+                    ", ".join(sorted(losers["run_id"].unique())),
+                    ", ".join(sorted(winners["run_id"].unique())),
+                )
+            )
+        keep_index.extend(winners.index.tolist())
+
+    return frame.loc[sorted(keep_index)].drop(columns="_rank"), overridden
+
+
 # ── 3. markdown レポート ───────────────────────────────────────────
 def write_markdown(run: Path, frame: pd.DataFrame, meta: dict, figures: list[Path]) -> Path:
     from eval.score import best_k_per_channel, summarise, summarise_with_spread
@@ -249,6 +293,14 @@ def write_markdown(run: Path, frame: pd.DataFrame, meta: dict, figures: list[Pat
             gv=meta.get("corpus", {}).get("generator_version"),
         ),
         f"- アーム: {', '.join(meta.get('arms', []))}",
+        *(
+            [
+                f"- 重ねた run: {', '.join(meta['merged_runs'])}"
+                "（同じアーム×チャネルが重複した場合は後の run を採用）"
+            ]
+            if meta.get("merged_runs")
+            else []
+        ),
         f"- k: {meta.get('k_values')}  モード: {meta.get('modes')}  反復: {meta.get('repeats')}",
         f"- CLI の固定オーバーヘッド（この run から推定）: "
         f"**{estimate_cli_overhead(frame):,} トークン/呼出**",
@@ -312,7 +364,26 @@ def main(argv: list[str] | None = None) -> int:
         prog="python -m eval.report", description="figures と markdown レポートを生成する。"
     )
     p.add_argument("--run", type=Path, required=True, help="results/<run_id>")
+    p.add_argument(
+        "--also",
+        type=Path,
+        action="append",
+        default=[],
+        help=(
+            "別 run の scored.csv を重ねてアーム比較にする（複数指定可）。"
+            "図と表だけが合算され、レポートの実行条件は --run のものを載せる"
+        ),
+    )
     p.add_argument("--mode", default="forced", help="ヒートマップに使う棄権モード（既定: forced）")
+    p.add_argument(
+        "--out",
+        type=Path,
+        default=None,
+        help=(
+            "出力先（既定: --run と同じ場所）。--also で複数 run を重ねるときは"
+            "必ず別の場所を指定すること。指定しないと単一 run の図を上書きしてしまう"
+        ),
+    )
     args = p.parse_args(argv)
 
     scored = args.run / "scored.csv"
@@ -321,20 +392,45 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     frame = pd.read_csv(scored)
+    extra_runs: list[str] = []
+    for other in args.also:
+        other_scored = other / "scored.csv"
+        if not other_scored.is_file():
+            print(f"scored.csv が無い: {other_scored}", file=sys.stderr)
+            return 2
+        frame = pd.concat([frame, pd.read_csv(other_scored)], ignore_index=True)
+        extra_runs.append(other.name)
+    if extra_runs:
+        frame, overridden = _resolve_overlaps(frame, [args.run.name, *extra_runs])
+        for arm, channel, dropped, kept in overridden:
+            print(f"  {arm}/{channel}: {dropped} を {kept} で上書きした")
     meta = json.loads((args.run / "meta.json").read_text(encoding="utf-8"))
+    if extra_runs:
+        # どの run を重ねたかは必ず残す。図だけ見て出所が分からない状態にしない。
+        meta["merged_runs"] = [meta.get("run_id", args.run.name), *extra_runs]
+        meta["arms"] = sorted(frame["arm"].unique())
 
     japanese = setup_fonts()
     lab = Labels(japanese)
     if not japanese:
         print("⚠️ 日本語フォントが見つからないため、図のラベルは英語で出力する")
 
-    figures_dir = args.run / "figures"
+    out_dir = args.out or args.run
+    if args.also and args.out is None:
+        print(
+            "エラー: --also を使うときは --out で別の出力先を指定すること"
+            f"（{args.run} の単一アームの図を上書きしてしまう）",
+            file=sys.stderr,
+        )
+        return 2
+    out_dir.mkdir(parents=True, exist_ok=True)
+    figures_dir = out_dir / "figures"
     figures = []
     # 棄権あり／なしの対比がこのベンチマークの主張の核なので、両方出す。
     for mode in sorted(frame["mode"].unique(), key=lambda m: m != args.mode):
         figures.append(channel_heatmap(frame, figures_dir, lab, mode))
     figures.append(cost_accuracy(frame, figures_dir, lab, meta.get("auth", "")))
-    report = write_markdown(args.run, frame, meta, figures)
+    report = write_markdown(out_dir, frame, meta, figures)
 
     for path in [*figures, report]:
         print(f"出力: {path}")
