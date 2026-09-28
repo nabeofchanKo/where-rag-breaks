@@ -209,6 +209,14 @@ JA = Locale(
         ),
         # ── version チャネル ─────────────────────────────────
         "vr_title": "{topic}規程（{code}）",
+        "vr_sec_revision": "改訂履歴",
+        "vr_body_revision": "最終改訂日: {date}",
+        "vr_sec_appendix": "附則",
+        "vr_body_appendix": (
+            "1. 本規程の運用にあたっては、関係部署と事前に協議するものとする。\n"
+            "2. 様式は別途定めるものとし、改定の都度周知する。\n"
+            "3. 本規程の解釈に疑義が生じた場合は、主管部署の判断による。"
+        ),
         "vr_sec_purpose": "第1条 目的",
         "vr_sec_scope": "第2条 適用範囲",
         "vr_sec_warranty": "第3条 保証期間",
@@ -218,7 +226,7 @@ JA = Locale(
         "vr_body_warranty": "保証期間は引渡し日から{months}か月とする。",
         "vr_body_misc": "本規程に定めのない事項は、別途協議のうえ定める。",
         "vr_index_title": "規程集 目次（{code}）",
-        "vr_index_body": "{code} の内容は old/ 配下の版を参照のこと。",
+        "vr_index_body": "{code} の内容は {name} を参照のこと。",
         "q_version": (
             "{topic}規程 {code} の現行版において、保証期間は引渡し日から何か月か。"
             "数値のみ答えよ。"
@@ -437,6 +445,15 @@ EN = Locale(
         ),
         # ── version ──────────────────────────────────────────
         "vr_title": "{topic} policy ({code})",
+        "vr_sec_revision": "Revision history",
+        "vr_body_revision": "Last revised: {date}",
+        "vr_sec_appendix": "Supplementary provisions",
+        "vr_body_appendix": (
+            "1. Operation of this policy shall be agreed with the relevant departments "
+            "in advance.\n"
+            "2. Forms are defined separately and circulated whenever revised.\n"
+            "3. Any question of interpretation is decided by the owning department."
+        ),
         "vr_sec_purpose": "Article 1 Purpose",
         "vr_sec_scope": "Article 2 Scope",
         "vr_sec_warranty": "Article 3 Warranty period",
@@ -446,7 +463,7 @@ EN = Locale(
         "vr_body_warranty": "The warranty period is {months} months from the date of handover.",
         "vr_body_misc": "Matters not covered here shall be agreed separately.",
         "vr_index_title": "Policy index ({code})",
-        "vr_index_body": "For the content of {code}, refer to the edition under old/.",
+        "vr_index_body": "For the content of {code}, refer to {name}.",
         "q_version": (
             "In the current edition of {topic} policy {code}, how many months is the "
             "warranty period from handover? Answer with the number only."

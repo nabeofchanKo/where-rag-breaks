@@ -97,6 +97,17 @@ def test_chart_native_hidden_sheet_is_hidden(corpus: Path) -> None:
 
 
 # ── version ─────────────────────────────────────────────────────────
+def _editions(item: Item, extracted: dict[str, str]) -> tuple[str, str]:
+    """(現行版の本文, 旧版の本文)。どちらが現行かは**改訂日**で決まる。"""
+    policies = [p for p in item.source_files if p.endswith(".docx") and "_index" not in p]
+    assert len(policies) == 2
+    dated = sorted(
+        policies,
+        key=lambda p: extracted[p].split("最終改訂日:")[1].strip().split()[0],
+    )
+    return extracted[dated[1]], extracted[dated[0]]
+
+
 def test_version_old_edition_is_the_decoy(corpus: Path, extracted: dict[str, str]) -> None:
     """旧版の値が囮になっている。
 
@@ -104,14 +115,59 @@ def test_version_old_edition_is_the_decoy(corpus: Path, extracted: dict[str, str
     **旧版が存在すること自体が囮**だから。
     """
     items = _items(corpus, "version")
-    assert not items[1].decoys, "難易度1 は現行版だけなので囮は無い"
-    for tier in (2, 3):
+    for tier in (1, 2, 3):
         item = items[tier]
         assert item.decoys, f"難易度{tier} に旧版の値が登録されていない"
-        old = next(p for p in item.source_files if "/old/" in p)
-        assert item.decoys[0] in extracted[old], "旧版に囮の値が入っていない"
-        current = next(p for p in item.source_files if "/current/" in p)
-        assert item.answer in extracted[current]
+        current, old = _editions(item, extracted)
+        assert item.answer in current, "現行版に正解が入っていない"
+        assert item.decoys[0] in old, "旧版に囮の値が入っていない"
+
+
+def test_version_control_tier_reveals_the_edition_through_the_path(corpus: Path) -> None:
+    """★ 難易度1 だけはパスで新旧が分かる（コントロール段）。
+
+    初版はこの構成しか無く、Arm A に 6/6 で解かれた。出所ヘッダに
+    ``policies/current/`` と出るため、中身を比べずに現行版が分かってしまう。
+    その経緯を段として保存してある。
+    """
+    paths = _items(corpus, "version")[1].source_files
+    assert any("/current/" in p for p in paths) and any("/old/" in p for p in paths)
+
+
+def test_version_trap_tiers_hide_the_edition_from_the_path(corpus: Path) -> None:
+    """難易度2 以降はパスから新旧が読めない。
+
+    連番（``_ed1`` / ``_ed2``）も使わない。番号の大小そのものがヒントになり、
+    改訂日を読まずに当てられてしまうため。
+    """
+    import re
+
+    for tier in (2, 3):
+        for path in _items(corpus, "version")[tier].source_files:
+            assert "/current/" not in path and "/old/" not in path
+            assert not re.search(r"_ed\d", path), "連番が新旧のヒントになっている"
+
+
+def test_version_revision_date_is_in_a_different_chunk(
+    corpus: Path, extracted: dict[str, str]
+) -> None:
+    """改訂日と保証期間が別の見出しブロックにある。
+
+    構造を見たチャンク分割では別チャンクに落ちるので、
+    「値を読むチャンク」と「どちらが現行かを決めるチャンク」を
+    突き合わせる必要が出る。これが難易度2 以降の肝。
+    """
+    from arms.classical.chunk import chunk_blocks
+    from arms.classical.extract import extract_corpus as _extract
+
+    chunks = chunk_blocks(_extract(corpus / "files"))
+    item = _items(corpus, "version")[2]
+    for path in item.source_files:
+        own = [c for c in chunks if c.path == path]
+        with_value = {c.locator for c in own if "保証期間は" in c.text}
+        with_date = {c.locator for c in own if "最終改訂日" in c.text}
+        assert with_value and with_date
+        assert not (with_value & with_date), "改訂日と保証期間が同じチャンクに入っている"
 
 
 def test_version_editions_differ_only_in_the_substantive_value(
@@ -119,8 +175,7 @@ def test_version_editions_differ_only_in_the_substantive_value(
 ) -> None:
     """新旧は保証期間の数値だけが実質的に違う（ほかは体裁差）。"""
     item = _items(corpus, "version")[2]
-    old = extracted[next(p for p in item.source_files if "/old/" in p)]
-    current = extracted[next(p for p in item.source_files if "/current/" in p)]
+    current, old = _editions(item, extracted)
     assert old != current
     assert item.answer in current and item.answer not in old
     assert item.decoys[0] in old and item.decoys[0] not in current

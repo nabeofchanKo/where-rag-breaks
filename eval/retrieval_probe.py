@@ -14,6 +14,12 @@
         「探し当てられたか」。
     answer_literal@k
         上位 k 件の本文に、**正解文字列がそのまま現れるか**。
+        ★ 氏名や拠点名のように**語彙を他の文書と共有する答え**では、
+          無関係な文書に同じ文字列が出ているだけで 1.0 になる。
+          この指標単体で罠の成否を判定してはいけない。
+    answer_literal_in_source@k
+        上位 k 件のうち**答えが実在するファイル由来のチャンク**に限って、
+        正解文字列が現れるか。上の誤検知を切り分けるための指標。
     answer_literal_corpus
         k に関係なく、コーパス全体の抽出テキストのどこかに正解文字列が現れるか。
         Arm A が「読むだけで」答えられる上限。ここが 0 なら、そのチャネルは
@@ -92,6 +98,7 @@ def probe(
             # 対象ファイルのチャンクのうち、何個が窓に入ったか。
             # 難易度2（k の窓超え）が効いているかはこの値で分かる。
             in_window = sum(1 for h in hits if h.chunk.path in sources)
+            source_text = "\n".join(h.chunk.text for h in hits if h.chunk.path in sources)
             rows.append(
                 {
                     "qid": item.qid,
@@ -107,6 +114,7 @@ def probe(
                         else float("nan")
                     ),
                     "answer_literal": _contains_answer(item, retrieved_text),
+                    "answer_literal_in_source": _contains_answer(item, source_text),
                     "answer_literal_corpus": in_corpus,
                     "decoy_literal": _contains_decoy(item, retrieved_text),
                     "top1_path": hits[0].chunk.path if hits else "",
@@ -134,6 +142,7 @@ def summarise(frame: pd.DataFrame) -> pd.DataFrame:
             file_recall=("file_recall", "mean"),
             source_coverage=("source_coverage", "mean"),
             answer_literal=("answer_literal", "mean"),
+            in_source=("answer_literal_in_source", "mean"),
             answer_literal_corpus=("answer_literal_corpus", "mean"),
             decoy_literal=("decoy_literal", "mean"),
         )
@@ -171,12 +180,17 @@ def main(argv: list[str] | None = None) -> int:
     print("file_recall            … 上位 k に答えのあるファイルが入った割合")
     print("source_coverage        … 対象ファイルのチャンクのうち窓に入った割合")
     print("answer_literal         … 上位 k の本文に正解文字列がそのまま現れた割合")
+    print("in_source              … うち、答えが実在するファイル由来のチャンクに現れた割合")
     print("answer_literal_corpus  … コーパス全体の抽出テキストに現れる割合（k 非依存）")
     print("decoy_literal          … 囮（陳腐化した値など）が窓に入った割合")
     print()
-    print("※ answer_literal が 0 でも、モデルが計算で導ける可能性は残る。")
-    print("   これは『答えがそのままの形では存在しない』ことの証拠であり、")
-    print("   『答えられない』ことの証明ではない。")
+    print("※1 answer_literal が 0 でも、モデルが計算で導ける可能性は残る。")
+    print("    これは『答えがそのままの形では存在しない』ことの証拠であり、")
+    print("    『答えられない』ことの証明ではない。")
+    print("※2 氏名・拠点名のように語彙を共有する答えでは、無関係な文書に同じ")
+    print("    文字列があるだけで answer_literal が 1.0 になる。in_source と")
+    print("    見比べること。format / layout / chart_native は、正解文字列が")
+    print("    読めても『どれがそれか』が分からないので罠は成立している。")
 
     if args.out:
         args.out.mkdir(parents=True, exist_ok=True)

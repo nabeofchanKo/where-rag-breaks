@@ -69,55 +69,92 @@
 > 隠れているのは文字列ではなく「どれがそれか」という対応づけである。
 > 「正解文字列が抽出できる＝罠が壊れている」ではない点に注意。
 
-### Arm A の測定結果（P0）
+### Arm A の測定結果（11チャネル）
 
-![channel_heatmap](results/p0-seed42-ja/figures/channel_heatmap.png)
+![channel_heatmap](results/p1-seed42-ja-k8/figures/channel_heatmap.png)
 
-432呼出（24問 × k{4,8,16} × 棄権2モード × N=3）、`claude-sonnet-5`、
-BM25 + BGE-m3 の RRF 融合。全文は
-[`results/p0-seed42-ja/report.md`](results/p0-seed42-ja/report.md)。
+396呼出（66問 × k=8 × 棄権2モード × N=3）、`claude-sonnet-5`、
+BM25 + BGE-m3 の RRF 融合、コーパス 311ファイル / 591チャンク。
+全文は [`results/p1-seed42-ja-k8/report.md`](results/p1-seed42-ja-k8/report.md)。
 
 **強制回答モード（棄権なし）**
 
-| チャネル | 難易度（罠の機構） | accuracy | penalized | decoy_rate |
-|---|---|---|---|---|
-| `text` | 1–3 | **1.000** | +1.000 | — |
-| `formula` | 1 コントロール | **1.000** | +1.000 | — |
-| `formula` | 2 k の窓超え | **0.000** | **−0.972** | — |
-| `formula` | 3 キャッシュ陳腐化 | 0.250 | −0.500 | **0.611** |
+| 段 | 結果 |
+|---|---|
+| 難易度1（コントロール） | **11チャネルすべてで 1.00** |
+| 難易度2（到達不能） | 11チャネル中 **9つで 0.00** |
+| 難易度3（囮つき） | 11チャネル中 9つで 0.00（`formula` のみ 0.50） |
 
-- **H1 は支持された。** `text` は全難易度で 1.000。古典的RAGが得意なはずの場所で得意。
-- **H2 は支持された。** ただし**難易度1 が 1.000 のまま**であることが重要で、
-  罠を積み上げて baseline を潰したのではないことの証拠になる。
-- `formula` 全体の `penalized` は **−0.157**。正答より誤答が多い。
+**8チャネルがぴったり 0.333（= 6/18）に並ぶ。** これは「コントロール段だけ正解、
+罠の段は全滅」という意味である。塗り色・グラフ画像・空間配置・暗号化・
+ファイル横断集計は互いにまったく別の機構なのに、同じ形で壊れる。
+そして**コントロール段が全部 1.00 である以上、原因は抽出器でも検索でもない。**
+
+反復間のばらつきは全チャネルで **0**（min = max = mean、N=3）。
 
 **気づける損失と、気づけない損失**
 
-棄権を許すと、2つの罠の性質がはっきり分かれる。
+![channel_heatmap_abstain](results/p1-seed42-ja-k8/figures/channel_heatmap_abstain_ok.png)
 
-| 難易度 | 答えの状態 | answer_rate | penalized | decoy_rate |
-|---|---|---|---|---|
-| 2 | **無い**（窓に入らない） | **0.000** | 0.000 | — |
-| 3 | **あるが古い** | 0.694 | **−0.417** | **0.556** |
+棄権を許すと、チャネルは3つの型に分かれる。
 
-**答えが欠けているときは気づいて棄権する。答えが「あるが古い」ときは気づかず、
-半分以上その古い値を答える。** 危険なのは後者である。
-古典的RAGの問題は「答えられないこと」ではなく、
-**壊れたことに気づけないまま答えてしまうこと**だという主張が、数字として出た。
+| 型 | チャネル | 挙動 |
+|---|---|---|
+| **気づいて黙る** | `chart_native` `chart_only` `layout` `locked` `scanned` | answer_rate 0.333 / **precision 1.000**。読めないと分かると答えない |
+| **問い自体を疑って黙る** | `format` `hidden` | answer_rate **0.000**。設問が「塗り色」など検証できない性質を指すので、コントロール段すら棄権する |
+| **気づかず間違える** | `cross_file` `formula` | answer_rate 0.5〜0.67 で、答えた半分が誤り。**足りないことに気づけない** |
+
+危険なのは3番目である。`cross_file` は10ファイルのうち窓に入った数件だけで
+合計を出し、それが不足していることに気づかない。
 
 **採点の内訳（開示）**
 
-- LLM judge が exact match を覆した: **14件**（「大阪支社」対「大阪支社構内」等の表記揺れ）
-- 囮に一致したため judge にかけなかった: **42件**（囮の実体は4種）。
-  ガードが不当に不利にしていないか検証するため4種すべてを judge にかけたところ、
-  **4/4 で judge も「不正解」**。このガードは採点を1件も変えていない
-- 棄権フラグを立てずに本文で「算出不可」と答えた: **18件**。
-  契約どおり誤答として採点しており、`penalized` はそのぶん実態より低い
-- 事後の採点基準変更はすべて
-  [`docs/scoring-changes.md`](docs/scoring-changes.md) に記録
+- LLM judge が exact match を覆した: **0件**（P0 で入れた「〜構内」alias により解消）
+- 囮に一致したため judge にかけなかった: **23件**
+- 棄権フラグを立てずに本文で「算出不可」と答えた: **20件**。契約どおり誤答として
+  採点しており、`penalized` はそのぶん実態より低い
+- **検証可能性**: `tool_results` 合計 0、`num_turns != 1` の呼出 0
 
-**検証可能性**: `tool_results` 合計 **0**、`num_turns != 1` の呼出 **0**。
-Arm A が「ツールなしで LLM を1回呼ぶ」定義どおりに動いたことが結果から確認できる。
+**★ `version` はこの表から外して読むこと。** この run では 1.00 だが、
+それはパスに `current/` と書いてあったため。下記のとおり作り直して再測定した。
+
+### `version` の作り直しと再測定
+
+上の run で `version` は全段 1.00 だった。原因はパスである。Arm A はチャンクに
+出所を付けて渡すので、`[policies/current/VR-4879_policy.docx :: 第3条]` と
+見えた時点で、中身を比べるまでもなく現行版が分かる。モデルの evidence は
+実際すべて `current/` を指していた。
+
+出所の明示をやめれば罠は成立するが、それは evidence を書かせるために必要で
+実務でも普通に行うことなので、SPEC §4-1 が禁じる手抜きに当たる。
+**罠のほうを直した。**
+
+難易度2 以降は同一フォルダに文書管理番号（`_D6345`）で並べ、現行版かどうかは
+**文書冒頭の改訂日**にしかない形にした。連番（`_ed1` / `_ed2`）は使わない
+——番号の大小そのものがヒントになるため。改訂日は保証期間の条文とは別の見出しに
+置いてあるので、構造を見たチャンク分割では**別チャンクに落ちる**。
+
+再測定（[`results/p1-version-v2-k8/`](results/p1-version-v2-k8/)、36呼出・N=3）:
+
+| 難易度 | 構成 | forced | decoy_rate | abstain_ok の answer_rate |
+|---|---|---|---|---|
+| 1 コントロール | パスで判別できる | **1.000** | 0.000 | 1.000 |
+| 2 | 改訂日でしか判別できない | **0.500** | **0.500** | **0.000** |
+| 3 | 同上 + 旧版が検索で上位に来る | 0.833 | 0.000 | **0.000** |
+
+罠として機能するようになった。難易度2 では半数で旧版の値を答えている。
+棄権モードでは難易度2・3 とも一切答えないので、これは**気づける損失**である。
+
+> ⚠️ **難易度3（0.833）が難易度2（0.500）を上回っており、段の順序が逆転している。**
+> 1段あたり 2問 × 3反復 = 6件しかないので、この順序は現時点のデータでは確定して
+> いない。段の難易度順を主張するには設問数を増やす必要がある
+> （SPEC §3-2 の最終目標である1チャネル10問なら1段あたり3〜4問）。
+
+> **コーパスの違いについて**: 上の11チャネルの表はコーパス `098d2e5f77e1c9a9`、
+> この再測定は `3d28964b9fdb6089` による。差分は `version` のファイルと、
+> それに伴って再配分されたディストラクタ12件のみで、他10チャネルの設問ファイルは
+> **バイト単位で同一**である（チャネルごとに乱数の名前空間を分けているため）。
+
 
 ### 一度反証された話（このリポジトリの作り方そのもの）
 
@@ -316,57 +353,97 @@ predicted**. Being wrong and being wrong on cue are counted separately.
 > the roster. What is hidden is not the string but which one it is. "The answer is
 > extractable" therefore does not mean the trap failed.
 
-### Arm A results (P0)
+### Arm A results (eleven channels)
 
-![channel_heatmap](results/p0-seed42-ja/figures/channel_heatmap.png)
+![channel_heatmap](results/p1-seed42-ja-k8/figures/channel_heatmap.png)
 
-432 calls (24 questions x k{4,8,16} x 2 abstention modes x N=3), `claude-sonnet-5`,
-BM25 + BGE-m3 fused with RRF. Full write-up in
-[`results/p0-seed42-ja/report.md`](results/p0-seed42-ja/report.md).
+396 calls (66 questions x k=8 x 2 abstention modes x N=3), `claude-sonnet-5`,
+BM25 + BGE-m3 fused with RRF, over a 311-file / 591-chunk corpus. Full write-up in
+[`results/p1-seed42-ja-k8/report.md`](results/p1-seed42-ja-k8/report.md).
 
 **Forced mode (abstention not permitted)**
 
-| Channel | Tier (trap mechanism) | accuracy | penalized | decoy_rate |
-|---|---|---|---|---|
-| `text` | 1–3 | **1.000** | +1.000 | — |
-| `formula` | 1 control | **1.000** | +1.000 | — |
-| `formula` | 2 window overflow | **0.000** | **−0.972** | — |
-| `formula` | 3 stale cache | 0.250 | −0.500 | **0.611** |
+| Tier | Result |
+|---|---|
+| 1 control | **1.00 on all eleven channels** |
+| 2 unreachable | **0.00 on nine of eleven** |
+| 3 decoyed | 0.00 on nine of eleven (`formula` alone at 0.50) |
 
-- **H1 holds.** `text` is 1.000 at every tier — classical RAG is strong where it
-  should be strong.
-- **H2 holds.** Crucially **tier 1 stays at 1.000**, which is the evidence that the
-  baseline was not simply buried under stacked traps.
-- `formula` overall lands at **−0.157** penalized: more wrong answers than right ones.
+**Eight channels land on exactly 0.333, which is 6/18**: the control tier and
+nothing else. Fill colour, chart images, spatial arrangement, encryption and
+cross-file aggregation are entirely unrelated mechanisms that fail in the same
+shape — and with every control tier at 1.00, neither the extractor nor the
+retriever can be the cause.
+
+Variance across repeats is **zero** on every channel (min = max = mean, N=3).
 
 **Detectable loss versus undetectable loss**
 
-Allowing abstention separates the two traps sharply.
+![channel_heatmap_abstain](results/p1-seed42-ja-k8/figures/channel_heatmap_abstain_ok.png)
 
-| Tier | State of the answer | answer_rate | penalized | decoy_rate |
-|---|---|---|---|---|
-| 2 | **absent** (does not fit the window) | **0.000** | 0.000 | — |
-| 3 | **present but stale** | 0.694 | **−0.417** | **0.556** |
+Allowing abstention splits the channels into three kinds.
 
-**When the answer is missing, the pipeline notices and abstains. When the answer is
-present but stale, it does not notice, and more than half the time it reports the
-stale value.** The second case is the dangerous one. The problem with classical RAG
-is not that it cannot answer — it is that **it cannot tell when it has been broken**.
+| Kind | Channels | Behaviour |
+|---|---|---|
+| **Notices and declines** | `chart_native` `chart_only` `layout` `locked` `scanned` | answer_rate 0.333, **precision 1.000**. It knows when it cannot see |
+| **Distrusts the question itself** | `format` `hidden` | answer_rate **0.000**. The question names a property the model cannot verify, so it declines even the control tier |
+| **Does not notice** | `cross_file` `formula` | answers 50–67% of the time and half of those are wrong |
+
+The third kind is the dangerous one. `cross_file` sums whichever of the ten files
+made it into the window and never registers that the rest are missing.
 
 **Scoring disclosure**
 
-- LLM judge overrode exact match **14 times** (surface variants such as "Osaka Branch"
-  versus "the premises of Osaka Branch")
-- **42 answers** matched a decoy and skipped the judge (4 distinct decoys). To check
-  the guard was not unfairly penalising the arm, all four were put through the judge
-  anyway: **4/4 rejected**. The guard changed no scores
-- **18 answers** refused in prose while leaving `abstained` false. They are scored as
-  wrong per the output contract, so `penalized` is lower than reality by that much
-- Every post-hoc change to the scoring basis is logged in
-  [`docs/scoring-changes.md`](docs/scoring-changes.md)
+- LLM judge overrode exact match **0 times** (the "premises of X" alias added after
+  P0 removed the only disagreement there was)
+- **23 answers** matched a decoy and skipped the judge
+- **20 answers** refused in prose while leaving `abstained` false; scored as wrong per
+  the output contract, so `penalized` is lower than reality by that much
+- **Verifiability**: total `tool_results` 0, calls with `num_turns != 1` 0
 
-**Verifiability**: total `tool_results` **0**, calls with `num_turns != 1` **0** — the
-"no tools, one invoke" definition of Arm A is checkable from the results.
+**★ Read `version` out of this table.** It scores 1.00 here only because the path
+said `current/`. It was rebuilt and re-measured separately, below.
+
+### Rebuilding and re-measuring `version`
+
+`version` scored 1.00 at every tier in the run above, because of the path. Arm A
+labels each chunk with its origin, so `[policies/current/VR-4879_policy.docx ::
+Article 3]` reveals which edition is current before any content is compared. Every
+cited evidence string pointed at `current/`.
+
+Dropping provenance would "fix" it, but provenance is what lets the arm cite
+evidence at all and is ordinary practice, so removing it is the deliberate hole
+SPEC section 4-1 rules out. **The trap was changed instead.**
+
+Tiers 2 and 3 now place both editions in one directory under document control
+numbers (`_D6345`), and which one is current is recoverable only from the revision
+date inside the document. Deliberately not `_ed1`/`_ed2` — the ordering in a
+sequence number is itself the answer. The revision date sits under its own heading,
+so structure-aware chunking puts it in a **different chunk** from the clause being
+asked about.
+
+Re-measurement ([`results/p1-version-v2-k8/`](results/p1-version-v2-k8/), 36 calls, N=3):
+
+| Tier | Layout | forced | decoy_rate | abstain_ok answer_rate |
+|---|---|---|---|---|
+| 1 control | path reveals the edition | **1.000** | 0.000 | 1.000 |
+| 2 | only the revision date distinguishes them | **0.500** | **0.500** | **0.000** |
+| 3 | as above, old edition ranks higher | 0.833 | 0.000 | **0.000** |
+
+The trap now bites: at tier 2 half the answers are the superseded value. Under
+abstention it answers nothing at tiers 2 and 3, so this is a **detectable** loss.
+
+> ⚠️ **Tier 3 (0.833) scores above tier 2 (0.500), inverting the intended ordering.**
+> Each tier rests on 2 questions x 3 repeats = 6 observations, so the ordering is not
+> established at this sample size. Claiming a difficulty order would need more
+> questions per channel (SPEC section 3-2's eventual target of 10 gives 3–4 per tier).
+
+> **On the two corpora**: the eleven-channel table above comes from corpus
+> `098d2e5f77e1c9a9`, this re-measurement from `3d28964b9fdb6089`. They differ only
+> in the `version` files plus 12 redistributed distractors; the question files of the
+> other ten channels are **byte-identical**, because each channel draws from its own
+> RNG namespace.
+
 
 ### The part that got falsified (and why that matters)
 
