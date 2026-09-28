@@ -232,6 +232,43 @@ def cost_accuracy(frame: pd.DataFrame, out: Path, lab: Labels, auth: str) -> Pat
     return path
 
 
+def _resolve_overlaps(
+    frame: pd.DataFrame, order: list[str]
+) -> tuple[pd.DataFrame, list[tuple[str, str, str, str]]]:
+    """同じ (アーム, チャネル) が複数の run にあるとき、**後の run を採る**。
+
+    ★ なぜ必要か:
+        チャネルの設計を直して測り直すと、同じアーム・同じチャネルの結果が
+        古い run と新しい run の両方に残る。素朴に連結すると新旧が混ざった
+        平均になり、**どちらの設計の数字なのか分からない図**ができる。
+
+        `--also` に渡した順を優先度とし、後に指定した run が上書きする。
+        上書きが起きたら必ず標準出力に出す（黙って捨てない）。
+    """
+    rank = {name: index for index, name in enumerate(order)}
+    frame = frame.copy()
+    frame["_rank"] = frame["run_id"].map(lambda r: rank.get(r, -1))
+
+    overridden: list[tuple[str, str, str, str]] = []
+    keep_index: list[int] = []
+    for (arm, channel), group in frame.groupby(["arm", "channel"], dropna=False):
+        best = group["_rank"].max()
+        winners = group[group["_rank"] == best]
+        losers = group[group["_rank"] != best]
+        if not losers.empty:
+            overridden.append(
+                (
+                    str(arm),
+                    str(channel),
+                    ", ".join(sorted(losers["run_id"].unique())),
+                    ", ".join(sorted(winners["run_id"].unique())),
+                )
+            )
+        keep_index.extend(winners.index.tolist())
+
+    return frame.loc[sorted(keep_index)].drop(columns="_rank"), overridden
+
+
 # ── 3. markdown レポート ───────────────────────────────────────────
 def write_markdown(run: Path, frame: pd.DataFrame, meta: dict, figures: list[Path]) -> Path:
     from eval.score import best_k_per_channel, summarise, summarise_with_spread
@@ -257,7 +294,10 @@ def write_markdown(run: Path, frame: pd.DataFrame, meta: dict, figures: list[Pat
         ),
         f"- アーム: {', '.join(meta.get('arms', []))}",
         *(
-            [f"- 重ねた run: {', '.join(meta['merged_runs'])}"]
+            [
+                f"- 重ねた run: {', '.join(meta['merged_runs'])}"
+                "（同じアーム×チャネルが重複した場合は後の run を採用）"
+            ]
             if meta.get("merged_runs")
             else []
         ),
@@ -351,6 +391,10 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         frame = pd.concat([frame, pd.read_csv(other_scored)], ignore_index=True)
         extra_runs.append(other.name)
+    if extra_runs:
+        frame, overridden = _resolve_overlaps(frame, [args.run.name, *extra_runs])
+        for arm, channel, dropped, kept in overridden:
+            print(f"  {arm}/{channel}: {dropped} を {kept} で上書きした")
     meta = json.loads((args.run / "meta.json").read_text(encoding="utf-8"))
     if extra_runs:
         # どの run を重ねたかは必ず残す。図だけ見て出所が分からない状態にしない。
