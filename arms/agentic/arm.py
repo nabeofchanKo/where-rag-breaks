@@ -114,6 +114,7 @@ class AgenticArm:
 
     name = "agentic"
     sweeps_k = False  # 検索はモデルが行うので top-k が無い
+    uses_tools = True  # 道具で自分で探すのがこのアームの定義
 
     def __init__(self, model: str | None = None, max_turns: int = DEFAULT_MAX_TURNS) -> None:
         self.model = model or resolve_model()

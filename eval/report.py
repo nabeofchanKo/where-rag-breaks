@@ -95,9 +95,9 @@ def channel_heatmap(frame: pd.DataFrame, out: Path, lab: Labels, mode: str) -> P
     pivot = pivot.reindex(sorted(pivot.columns), axis=1)
 
     arms = sorted({arm for arm, _ in pivot.columns})
+    tier = (lambda d: f"難易度{d}") if lab.ja else (lambda d: f"tier {d}")
     labels = [
-        (f"難易度{d}" if lab.ja else f"tier {d}") if len(arms) == 1 else f"{arm}\n{d}"
-        for arm, d in pivot.columns
+        tier(d) if len(arms) == 1 else f"{arm}\n{tier(d)}" for arm, d in pivot.columns
     ]
 
     fig, ax = plt.subplots(figsize=(2.6 + 1.3 * len(pivot.columns), 0.45 * len(pivot) + 2.4))
@@ -375,6 +375,15 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     p.add_argument("--mode", default="forced", help="ヒートマップに使う棄権モード（既定: forced）")
+    p.add_argument(
+        "--out",
+        type=Path,
+        default=None,
+        help=(
+            "出力先（既定: --run と同じ場所）。--also で複数 run を重ねるときは"
+            "必ず別の場所を指定すること。指定しないと単一 run の図を上書きしてしまう"
+        ),
+    )
     args = p.parse_args(argv)
 
     scored = args.run / "scored.csv"
@@ -406,13 +415,22 @@ def main(argv: list[str] | None = None) -> int:
     if not japanese:
         print("⚠️ 日本語フォントが見つからないため、図のラベルは英語で出力する")
 
-    figures_dir = args.run / "figures"
+    out_dir = args.out or args.run
+    if args.also and args.out is None:
+        print(
+            "エラー: --also を使うときは --out で別の出力先を指定すること"
+            f"（{args.run} の単一アームの図を上書きしてしまう）",
+            file=sys.stderr,
+        )
+        return 2
+    out_dir.mkdir(parents=True, exist_ok=True)
+    figures_dir = out_dir / "figures"
     figures = []
     # 棄権あり／なしの対比がこのベンチマークの主張の核なので、両方出す。
     for mode in sorted(frame["mode"].unique(), key=lambda m: m != args.mode):
         figures.append(channel_heatmap(frame, figures_dir, lab, mode))
     figures.append(cost_accuracy(frame, figures_dir, lab, meta.get("auth", "")))
-    report = write_markdown(args.run, frame, meta, figures)
+    report = write_markdown(out_dir, frame, meta, figures)
 
     for path in [*figures, report]:
         print(f"出力: {path}")

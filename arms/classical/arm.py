@@ -69,6 +69,7 @@ class ClassicalArm:
 
     name = "classical"
     sweeps_k = True  # top-k を持つので k スイープの対象
+    uses_tools = False  # ツールなしで LLM を1回呼ぶ（SPEC §4-2）
 
     def __init__(
         self,

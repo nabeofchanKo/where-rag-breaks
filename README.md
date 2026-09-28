@@ -4,8 +4,8 @@
 >
 > A benchmark that measures **which information channels break classical RAG** (chunk + embed + top-k), using a synthetic corpus with automatically-derived ground truth.
 
-**ステータス: P1 完了。11チャネルすべてと Arm A が動く。Arm B/C（P2・P3）は未着手。**
-**Status: P1 done. All 11 channels and Arm A work. Arms B and C (P2, P3) are not built yet.**
+**ステータス: P2 完了。11チャネル + Arm A（classical）+ Arm B（agentic）が動く。Arm C（hybrid）は未着手。**
+**Status: P2 done. Eleven channels, Arm A (classical) and Arm B (agentic) all work. Arm C (hybrid) is next.**
 
 ---
 
@@ -155,6 +155,57 @@ BM25 + BGE-m3 の RRF 融合、コーパス 311ファイル / 591チャンク。
 > それに伴って再配分されたディストラクタ12件のみで、他10チャネルの設問ファイルは
 > **バイト単位で同一**である（チャネルごとに乱数の名前空間を分けているため）。
 
+
+### Arm B（agentic）との比較 — エージェントは万能ではない
+
+![arm comparison](results/compare-armA-armB/figures/channel_heatmap.png)
+
+Arm B は**カタログ + Markdown ミラー**を索引とし、検索はモデル自身が
+`list_files` / `read_file` / `grep` / `run_python` / `view_image` で行う。
+198呼出（66問 × 強制回答 × N=3）。
+
+★ **ミラーは Arm A とまったく同じ抽出器で作っている。** 前処理で優遇すると
+「エージェントが自力で見つけた」のか「索引が良かった」のか区別できなくなるため。
+Arm B の強みは索引ではなく道具にある。
+
+**到達不能な損失は、エージェントが解決する**
+
+8チャネルで Arm A の 0.00 が Arm B では 1.00 になった。
+塗り色は openpyxl で、グラフ画像は `view_image` で、暗号化ファイルは
+規則を2文書から組み立ててパスワードを作り `pyzipper` で、
+10ファイル横断の合計は全部開いて集計して、それぞれ解いている。
+
+**ところが「古い値が読める」損失では、エージェントのほうが悪い**
+
+| チャネル | 正答率 A→B | 囮を掴んだ率 A→B |
+|---|---|---|
+| `formula` 難易度3（陳腐化キャッシュ） | 0.50 → **0.17** | 0.50 → **0.67** |
+| `version` 難易度3（旧版を指す目次あり） | 0.83 → **0.00** | 0.17 → **0.44** |
+
+理由は挙動を追うと明快である。
+
+- **`formula`**: エージェントは openpyxl で「正しく」ファイルを開き、
+  `data_only=True` が返す**キャッシュ値をそのまま信じる**。Arm A は抽出
+  テキストにキャッシュ値と数式の両方が並ぶので、ときどき再計算して気づく。
+  **ライブラリで正規に読むことが、かえって古い値に権威を与えている。**
+- **`version`**: 目次が旧版を指しているので、エージェントは**素直に辿って
+  旧版を読む**（6回中6回）。チャンク検索はポインタを辿らないので、
+  この失敗をしない。
+
+つまりこうなる。
+
+| 損失の型 | 古典的RAG | エージェント |
+|---|---|---|
+| **答えに到達できない** | 壊れる | **解決する** |
+| **古い答えが読めてしまう** | ときどき気づく | **より確実に騙される** |
+
+「RAG をやめてエージェントにすれば解決する」は、前者については正しく、
+**後者については逆**である。
+
+**コスト**
+
+Arm B は1問あたり $0.02〜0.08 / 24〜125秒。Arm A は約 $0.005 / 約23秒。
+**4〜16倍のコストと時間**を払って上の差を買っている。
 
 ### 一度反証された話（このリポジトリの作り方そのもの）
 
@@ -444,6 +495,57 @@ abstention it answers nothing at tiers 2 and 3, so this is a **detectable** loss
 > other ten channels are **byte-identical**, because each channel draws from its own
 > RNG namespace.
 
+
+### Comparing Arm B (agentic) — the agent is not uniformly better
+
+![arm comparison](results/compare-armA-armB/figures/channel_heatmap.png)
+
+Arm B indexes with a **catalog plus a markdown mirror** and does its own searching
+through `list_files` / `read_file` / `grep` / `run_python` / `view_image`.
+198 calls (66 questions, forced mode, N=3).
+
+★ **The mirror is built with exactly the same extractor as Arm A.** Privileging
+ingestion would make it impossible to tell whether the agent found something or
+the preprocessor handed it over. Arm B's strength is meant to be its tools.
+
+**Unreachable answers: the agent solves them**
+
+Eight channels go from 0.00 under Arm A to 1.00 under Arm B. Fill colours through
+openpyxl, chart images through `view_image`, encrypted archives by assembling the
+password rule from two documents and opening the zip with `pyzipper`, ten-file sums
+by opening all ten and adding them up.
+
+**But where a stale answer is readable, the agent does worse**
+
+| Channel | accuracy A→B | decoy rate A→B |
+|---|---|---|
+| `formula` tier 3 (stale cache) | 0.50 → **0.17** | 0.50 → **0.67** |
+| `version` tier 3 (index points at the old edition) | 0.83 → **0.00** | 0.17 → **0.44** |
+
+Following the traces makes the reason plain.
+
+- **`formula`**: the agent opens the workbook "properly" with openpyxl and trusts
+  the cached value `data_only=True` hands back. Arm A sees the cached value and the
+  formula side by side in extracted text and sometimes recomputes.
+  **Reading the file correctly is what lends the stale number its authority.**
+- **`version`**: the index points at the old edition, so the agent follows it and
+  reads the superseded document — six times out of six. Chunk retrieval never
+  follows a pointer, so it cannot fail this way.
+
+Which gives:
+
+| Kind of loss | Classical RAG | Agent |
+|---|---|---|
+| **Cannot reach the answer** | breaks | **solves it** |
+| **A stale answer is readable** | sometimes notices | **more reliably fooled** |
+
+"Drop RAG and use an agent" is right about the first row and **backwards about the
+second**.
+
+**Cost**
+
+Arm B runs $0.02–0.08 and 24–125 s per question, against roughly $0.005 and 23 s for
+Arm A — **4 to 16 times the cost and time** for the difference above.
 
 ### The part that got falsified (and why that matters)
 
