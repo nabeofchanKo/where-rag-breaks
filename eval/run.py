@@ -220,8 +220,10 @@ def main(argv: list[str] | None = None) -> int:
                             sink.write(json.dumps(row, ensure_ascii=False) + "\n")
                             sink.flush()  # 途中で落ちても再開できるように毎回流す
                             executed += 1
+                            # k を持たないアームでは k が None になる
+                            shown_k = "-" if k is None else str(k)
                             print(
-                                f"  [{executed:4d}] {arm_name} k={k:<3} {mode:<10} "
+                                f"  [{executed:4d}] {arm_name} k={shown_k:<3} {mode:<10} "
                                 f"r{repeat} {item.qid:<12} -> {out.answer[:40]!r}"
                                 + ("  ⚠️" if out.error else "")
                             )
