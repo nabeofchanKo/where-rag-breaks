@@ -87,6 +87,45 @@ class ToolContext:
         """
         self.files_opened.append(path.relative_to(self.corpus).as_posix())
 
+    def mirror_is_visible(self, mirror_path: Path) -> bool:
+        """ミラーの .md が、このアームに見えてよいファイルのものか。
+
+        ``_index/mirror/<相対パス>.md`` の形なので、``.md`` を外して
+        ``allowed`` と突き合わせる。
+        """
+        if self.allowed is None:
+            return True
+        try:
+            rel = mirror_path.relative_to(self.index / "mirror").as_posix()
+        except ValueError:
+            return True  # カタログなどミラー以外はそのまま
+        return rel.removesuffix(".md") in self.allowed
+
+    def filter_catalog(self, body: str) -> str:
+        """カタログの行を候補ファイルだけに絞る。
+
+        ★ Arm C ではこれが無いと意味が無い。候補を N 件に絞っても、
+        カタログに全ファイルが並んでいればエージェントはそこから
+        好きなものを選べてしまい、「絞ってから渡す」という設計が成立しない。
+        """
+        if self.allowed is None:
+            return body
+        out: list[str] = []
+        dropped = 0
+        for line in body.split("\n"):
+            if line.startswith("| `"):
+                path = line.split("`")[1]
+                if path in self.allowed:
+                    out.append(line)
+                else:
+                    dropped += 1
+            else:
+                out.append(line)
+        if dropped:
+            out.append("")
+            out.append(f"（このアームに割り当てられていない {dropped} 件は伏せてある）")
+        return "\n".join(out)
+
     def visible_files(self) -> list[Path]:
         paths = [p for p in sorted(self.files.rglob("*")) if p.is_file()]
         if self.allowed is None:
@@ -142,12 +181,16 @@ def build_server(ctx: ToolContext):
             return _text(f"エラー: ファイルが無い: {args['path']}")
         ctx.note_open(path)
         try:
-            return _text(_clip(path.read_text(encoding="utf-8")))
+            body = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
             return _text(
                 f"エラー: {args['path']} はテキストとして読めない（バイナリ）。"
                 "run_python で開くか、画像なら view_image を使うこと。"
             )
+        if path == ctx.index / "catalog.md":
+            # 候補が絞られているアーム（Arm C）にはその範囲だけを見せる
+            body = ctx.filter_catalog(body)
+        return _text(_clip(body))
 
     @tool(
         "grep",
@@ -167,6 +210,8 @@ def build_server(ctx: ToolContext):
         for root in roots:
             for path in sorted(root.rglob("*")):
                 if not path.is_file() or not path.match(glob):
+                    continue
+                if not ctx.mirror_is_visible(path):
                     continue
                 try:
                     content = path.read_text(encoding="utf-8")
