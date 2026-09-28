@@ -109,6 +109,12 @@ class Arm(Protocol):
 
     name: str
 
+    # top-k という概念を持つか。False のアームに k をスイープさせると、
+    # **まったく同じ設定を何度も実行する**ことになる（実測: Arm B で
+    # 594 回のうち 396 回が無駄になりかけた）。``eval/run.py`` がこの宣言を
+    # 見て k を畳む。コマンドラインのフラグ指定に頼らない。
+    sweeps_k: bool
+
     def prepare(self, corpus: Path, locale: str) -> None:
         """索引を構築する。設問ごとではなく**コーパスごとに1回**呼ばれる。"""
         ...

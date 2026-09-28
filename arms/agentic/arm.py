@@ -113,6 +113,7 @@ class AgenticArm:
     """SPEC §4-2 の Arm B。"""
 
     name = "agentic"
+    sweeps_k = False  # 検索はモデルが行うので top-k が無い
 
     def __init__(self, model: str | None = None, max_turns: int = DEFAULT_MAX_TURNS) -> None:
         self.model = model or resolve_model()

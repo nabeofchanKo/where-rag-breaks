@@ -68,6 +68,7 @@ class ClassicalArm:
     """SPEC §4-2 の Arm A。"""
 
     name = "classical"
+    sweeps_k = True  # top-k を持つので k スイープの対象
 
     def __init__(
         self,

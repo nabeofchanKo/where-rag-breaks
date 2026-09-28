@@ -1,6 +1,6 @@
 {
   "run_id": "p2-agentic-forced",
-  "started_at": "2026-09-28T05:39:27.771342+00:00",
+  "started_at": "2026-09-28T06:12:29.683264+00:00",
   "corpus": {
     "channels": [
       "chart_native",
@@ -42,7 +42,7 @@
   "arm_config": {
     "agentic": {
       "index": "catalog + markdown mirror",
-      "n_files": 311,
+      "n_files": 313,
       "n_mirrored": 255,
       "tools": [
         "mcp__wrb__list_files",

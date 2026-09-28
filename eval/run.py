@@ -145,7 +145,13 @@ def main(argv: list[str] | None = None) -> int:
     raw_path = run_dir / "raw.jsonl"
     done = _load_done(raw_path)
 
-    planned = len(items) * len(arm_names) * len(modes) * len(ks) * args.repeats
+    planned = sum(
+        len(items)
+        * len(modes)
+        * args.repeats
+        * (len(ks) if getattr(ARMS[name], "sweeps_k", True) else 1)
+        for name in arm_names
+    )
     print(f"run_id       : {run_id}")
     print(f"設問         : {len(items)} 問")
     print(f"アーム       : {', '.join(arm_names)}")
@@ -183,8 +189,16 @@ def main(argv: list[str] | None = None) -> int:
                 newline="\n",
             )
 
-            for k in ks:
-                arm.reindex_for_k(k)
+            # k を持たないアーム（Arm B）で k をスイープすると、同じ設定を
+            # 何度も実行するだけになる。アーム側の宣言を見て畳む。
+            arm_ks: list[int | None] = list(ks) if getattr(arm, "sweeps_k", True) else [None]
+            if arm_ks != list(ks):
+                print(f"  ({arm_name} は k を持たないため k スイープを畳んだ)")
+            meta.setdefault("k_values_per_arm", {})[arm_name] = arm_ks
+
+            for k in arm_ks:
+                if k is not None:
+                    arm.reindex_for_k(k)
                 for mode in modes:
                     for repeat in range(args.repeats):
                         for item in items:
