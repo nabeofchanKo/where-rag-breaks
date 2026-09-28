@@ -106,6 +106,11 @@ def channel_heatmap(frame: pd.DataFrame, out: Path, lab: Labels, mode: str) -> P
 
     ax.set_xticks(range(len(pivot.columns)), labels)
     ax.set_yticks(range(len(pivot)), list(pivot.index))
+
+    # アームの切れ目に縦線を入れる。どこまでが同じアームか一目で分かるように。
+    for index in range(1, len(pivot.columns)):
+        if pivot.columns[index][0] != pivot.columns[index - 1][0]:
+            ax.axvline(index - 0.5, color="white", linewidth=3)
     for i in range(data.shape[0]):
         for j in range(data.shape[1]):
             value = data[i, j]
@@ -134,15 +139,17 @@ def channel_heatmap(frame: pd.DataFrame, out: Path, lab: Labels, mode: str) -> P
 
 
 # ── 2. コスト × 正答率 ─────────────────────────────────────────────
-def estimate_cli_overhead(frame: pd.DataFrame) -> int:
+def estimate_cli_overhead(frame: pd.DataFrame) -> int:  # noqa: D401
     """1 呼出あたりの固定オーバーヘッドを run 自体から推定する。
 
     ``input_tokens ≈ a + b×k`` の切片 a を採る。k が 1 種類しかない run では
     回帰できないので、観測された最小 input_tokens を上限として使う。
     """
+    usable = frame.dropna(subset=["k"])
     observed_min = int(frame["input_tokens"].min())
-    if frame["k"].nunique() < 2:
+    if usable.empty or usable["k"].nunique() < 2:
         return observed_min
+    frame = usable
     slope, intercept = np.polyfit(
         frame["k"].to_numpy(float), frame["input_tokens"].to_numpy(float), 1
     )
@@ -249,6 +256,11 @@ def write_markdown(run: Path, frame: pd.DataFrame, meta: dict, figures: list[Pat
             gv=meta.get("corpus", {}).get("generator_version"),
         ),
         f"- アーム: {', '.join(meta.get('arms', []))}",
+        *(
+            [f"- 重ねた run: {', '.join(meta['merged_runs'])}"]
+            if meta.get("merged_runs")
+            else []
+        ),
         f"- k: {meta.get('k_values')}  モード: {meta.get('modes')}  反復: {meta.get('repeats')}",
         f"- CLI の固定オーバーヘッド（この run から推定）: "
         f"**{estimate_cli_overhead(frame):,} トークン/呼出**",
@@ -312,6 +324,16 @@ def main(argv: list[str] | None = None) -> int:
         prog="python -m eval.report", description="figures と markdown レポートを生成する。"
     )
     p.add_argument("--run", type=Path, required=True, help="results/<run_id>")
+    p.add_argument(
+        "--also",
+        type=Path,
+        action="append",
+        default=[],
+        help=(
+            "別 run の scored.csv を重ねてアーム比較にする（複数指定可）。"
+            "図と表だけが合算され、レポートの実行条件は --run のものを載せる"
+        ),
+    )
     p.add_argument("--mode", default="forced", help="ヒートマップに使う棄権モード（既定: forced）")
     args = p.parse_args(argv)
 
@@ -321,7 +343,19 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     frame = pd.read_csv(scored)
+    extra_runs: list[str] = []
+    for other in args.also:
+        other_scored = other / "scored.csv"
+        if not other_scored.is_file():
+            print(f"scored.csv が無い: {other_scored}", file=sys.stderr)
+            return 2
+        frame = pd.concat([frame, pd.read_csv(other_scored)], ignore_index=True)
+        extra_runs.append(other.name)
     meta = json.loads((args.run / "meta.json").read_text(encoding="utf-8"))
+    if extra_runs:
+        # どの run を重ねたかは必ず残す。図だけ見て出所が分からない状態にしない。
+        meta["merged_runs"] = [meta.get("run_id", args.run.name), *extra_runs]
+        meta["arms"] = sorted(frame["arm"].unique())
 
     japanese = setup_fonts()
     lab = Labels(japanese)
