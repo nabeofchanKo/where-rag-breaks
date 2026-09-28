@@ -4,8 +4,8 @@
 >
 > A benchmark that measures **which information channels break classical RAG** (chunk + embed + top-k), using a synthetic corpus with automatically-derived ground truth.
 
-**ステータス: P2 完了。11チャネル + Arm A（classical）+ Arm B（agentic）が動く。Arm C（hybrid）は未着手。**
-**Status: P2 done. Eleven channels, Arm A (classical) and Arm B (agentic) all work. Arm C (hybrid) is next.**
+**ステータス: P3 完了。11チャネル + 3アームすべてが動き、チャネル別ヒートマップが出ている。次は P4（スケーリング）。**
+**Status: P3 done. Eleven channels and all three arms run, and the channel heatmap exists. P4 (scaling) is next.**
 
 ---
 
@@ -155,6 +155,26 @@ BM25 + BGE-m3 の RRF 融合、コーパス 311ファイル / 591チャンク。
 > それに伴って再配分されたディストラクタ12件のみで、他10チャネルの設問ファイルは
 > **バイト単位で同一**である（チャネルごとに乱数の名前空間を分けているため）。
 
+
+### 3アーム比較（P3）
+
+![3 arms](results/compare-3arms/figures/channel_heatmap.png)
+
+同じコーパス・同じモデル・強制回答モード・N=3。
+
+| アーム | 正答率 | 純スコア（正−誤） | 1問あたりコスト | 1問あたり秒 | ツール呼出 |
+|---|---|---|---|---|---|
+| **A `classical`** | 0.449 | **−0.076** | $0.014 | 22.2 | 0 |
+| **B `agentic`** | **0.919** | +0.843 | $0.047 | 32.5 | 6.6 |
+| **C `hybrid`** | **0.919** | +0.838 | **$0.039** | **29.1** | 6.3 |
+
+- **古典的RAGの純スコアは負**（−0.076）。正解より誤答のほうが多い。
+  SPEC §1 が出発点として挙げた実測（ベクトル検索ルートの純スコア −11）と同じ符号。
+- **agentic と hybrid は正答率が完全に同じ**（0.919）。hybrid のほうが
+  **17%安く、10%速い**。
+- ただし **H3（コーパスが大きくなるほど hybrid が有利、破綻点が存在する）は
+  これだけでは判定できない。** 311ファイルという規模では agentic もまだ余裕が
+  ある。判定には P4 のスケーリング測定（50 / 500 / 5,000）が要る。
 
 ### Arm B（agentic）との比較 — エージェントは万能ではない
 
@@ -495,6 +515,26 @@ abstention it answers nothing at tiers 2 and 3, so this is a **detectable** loss
 > other ten channels are **byte-identical**, because each channel draws from its own
 > RNG namespace.
 
+
+### Three-arm comparison (P3)
+
+![3 arms](results/compare-3arms/figures/channel_heatmap.png)
+
+Same corpus, same model, forced mode, N=3.
+
+| Arm | accuracy | penalized | cost/question | s/question | tool calls |
+|---|---|---|---|---|---|
+| **A `classical`** | 0.449 | **−0.076** | $0.014 | 22.2 | 0 |
+| **B `agentic`** | **0.919** | +0.843 | $0.047 | 32.5 | 6.6 |
+| **C `hybrid`** | **0.919** | +0.838 | **$0.039** | **29.1** | 6.3 |
+
+- **Classical RAG's penalized score is negative** (−0.076): more wrong answers than
+  right ones, the same sign as the −11 measurement SPEC section 1 starts from.
+- **Agentic and hybrid tie exactly on accuracy** (0.919), with hybrid **17% cheaper
+  and 10% faster**.
+- **H3 (hybrid pulls ahead as the corpus grows; a break-even point exists) cannot be
+  decided from this.** At 311 files the agent is not yet strained. Deciding it needs
+  the P4 scaling runs (50 / 500 / 5,000).
 
 ### Comparing Arm B (agentic) — the agent is not uniformly better
 

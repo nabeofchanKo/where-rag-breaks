@@ -64,5 +64,12 @@
       "n_candidate_files": 20,
       "narrowing": "file-level (not chunk-level)"
     }
-  }
+  },
+  "k_values_per_arm": {
+    "hybrid": [
+      20
+    ]
+  },
+  "finished_at": "2026-09-28T12:05:22.888048+00:00",
+  "executed_calls": 198
 }
