@@ -1,16 +1,19 @@
 """道具を使うアームのセッション記録を監査する（LLM 不要）。
 
     uv run python -m eval.hermetic_audit --corpus corpus-1000/ --since 2026-09-30T00:00:00Z
+    uv run python -m eval.hermetic_audit --corpus corpus-1000/ --hybrid   # Arm C の記録
 
 Claude CLI はセッションごとの記録を ``~/.claude/projects/<作業ディレクトリ名>/`` に
-残す。Arm B / C の作業ディレクトリはコーパス直下なので、コーパスごとに記録が
-まとまっている。ここから次の 3 点を数える。
+残す。Arm B の作業ディレクトリはコーパス直下、Arm C は設問ごとの作業ディレクトリ
+（``arms.hybrid.arm.workspace_for``）なので、それぞれの場所に記録がまとまっている。
+ここから次の 3 点を数える。
 
-    answer_files    正解の入ったファイル（questions.jsonl / meta.json / results/）や
-                    リポジトリ外への言及。1 件でもあれば、その run は結論に使えない
-    outside_paths   コーパスの外を指すパス（絶対パス・``..``・``/tmp``）を使った呼出。
-                    ``read_file`` はガードで弾かれるが、``run_python`` は任意のコード
-                    なので弾けない。件数と中身を目で確かめる
+    answer_files    正解の入ったファイル（questions.jsonl / meta.json / results/）、
+                    メモリ、リポジトリ名、``..`` によるディレクトリの遡り。
+                    作業ディレクトリから外へ出ようとした形跡であり、1 件でもあれば
+                    中身を確かめるまでその run は結論に使えない
+    outside_paths   絶対パスや ``/tmp`` を使った呼出。``read_file`` はガードで弾かれるが、
+                    ``run_python`` は任意のコードなので弾けない。件数と中身を目で確かめる
     foreign_codes   ``files/`` と ``_index/`` 以外から読んだ結果に、**別の設問の文書
                     コード**が出てきた呼出。前の設問の一時ファイルを読んだ疑い
 
@@ -28,8 +31,13 @@ import sys
 from pathlib import Path
 
 CODE = re.compile(r"\b([A-Z]{2,3}-\d{4})")
-ANSWER_FILES = re.compile(r"questions\.jsonl|meta\.json|results[/\\]|\.claude[/\\]")
-OUTSIDE = re.compile(r"""(?:['"\s(]|^)(?:[A-Za-z]:[/\\]|/tmp/|\.\./|\.\.\\)""")
+# ★ 照合する相手は json.dumps した文字列。実際のバックスラッシュ 1 個は `\\` の 2 文字に、
+#   改行は `\n` の 2 文字になる。素朴に書くと `x:\n` を Windows パスと誤認する。
+ANSWER_FILES = re.compile(
+    r"""questions\.jsonl|meta\.json|results[/\\]|\.claude[/\\]|where-rag-breaks"""
+    r"""|(?<!\.)\.\.(?:/|\\\\|['"])"""  # '...'（三点リーダ）は遡りではない
+)
+OUTSIDE = re.compile(r"""(?:['"\s(]|^)(?:[A-Za-z]:(?:/|\\\\)|/tmp/)""")
 
 
 def transcript_dir(corpus: Path) -> Path:
@@ -46,7 +54,11 @@ def _messages(session: Path):
             continue
 
 
-def audit(corpus: Path, since: str = "") -> dict:
+def audit(corpus: Path, since: str = "", hybrid: bool = False) -> dict:
+    if hybrid:
+        from arms.hybrid.arm import workspace_for
+
+        corpus = workspace_for(corpus)
     root = transcript_dir(corpus)
     sessions = sorted(root.glob("*.jsonl")) if root.is_dir() else []
 
@@ -115,13 +127,14 @@ def main(argv: list[str] | None = None) -> int:
         prog="python -m eval.hermetic_audit", description=__doc__.split("\n")[0]
     )
     p.add_argument("--corpus", type=Path, required=True)
+    p.add_argument("--hybrid", action="store_true", help="Arm C の作業ディレクトリの記録を見る")
     p.add_argument(
         "--since", default="", help="この時刻（ISO 8601, UTC）以降に始まったセッションだけ"
     )
     p.add_argument("--out", type=Path, default=None, help="結果を JSON で保存する場所")
     args = p.parse_args(argv)
 
-    result = audit(args.corpus, args.since)
+    result = audit(args.corpus, args.since, args.hybrid)
     print(f"記録: {result['transcripts']}")
     print(f"セッション数         : {result['sessions']}")
     print(f"正解ファイルへの言及 : {len(result['answer_files'])}")

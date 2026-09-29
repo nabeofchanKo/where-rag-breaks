@@ -28,11 +28,13 @@
     実測で、候補外のミラーや原本を開いた呼出が P3 にも P4 にもある。
     そこで設問ごとに**候補ファイルだけをハードリンクした作業ディレクトリ**
     （原本・ミラー・絞ったカタログ）を作り、エージェントにはそこだけを渡す。
-    これなら run_python でも候補外には届かない。
+    これなら run_python でも候補外には届かない。作業ディレクトリはリポジトリの
+    外に置く（``..`` で本物のコーパスや results/ に出られないように）。
 """
 
 from __future__ import annotations
 
+import hashlib
 import os
 import shutil
 from pathlib import Path
@@ -159,14 +161,18 @@ class HybridArm:
         return found[: self.k * 2]  # 候補が膨らみすぎないように頭打ち
 
     def workspace_dir(self) -> Path:
-        """作業ディレクトリの場所。コーパスの隣に固定する。
+        """作業ディレクトリの場所。**リポジトリの外**の固定の場所に置く。
+
+        ★ コーパスの隣に置くと、run_python で ``..`` を 1 回たどるだけで本物の
+          コーパスも ``results/``（正解入り）も見えてしまう。名前もコーパス名を
+          含めず、パスのハッシュにする（監査で「本物のコーパスへの言及」を
+          検出するため、正当な呼出にコーパス名が現れないようにする）。
 
         固定するのは、CLI のセッション記録が作業ディレクトリ名ごとにまとまるため
-        （``eval.hermetic_audit --corpus <ここ>`` で監査できる）。コーパスの中に
-        置くと Arm B から見えてしまうので、必ず外に置く。
+        （``eval.hermetic_audit --workdir <ここ>`` で監査できる）。
         """
         corpus = self.agentic._require_corpus()  # noqa: SLF001
-        return corpus.parent / f".ws-{corpus.name}"
+        return workspace_for(corpus)
 
     def build_workspace(self, candidates: list[str]) -> Path:
         """候補ファイルだけを持つコーパスの複製を作る（中身はハードリンク）。"""
@@ -203,6 +209,12 @@ class HybridArm:
         # 診断用。候補に正解のファイルが入っていたかを後から確かめられる。
         out.retrieved = candidates
         return out
+
+
+def workspace_for(corpus: Path) -> Path:
+    """コーパスごとの Arm C 作業ディレクトリ（``~/.cache/wrb-ws/<ハッシュ>``）。"""
+    digest = hashlib.sha256(str(corpus.resolve()).encode("utf-8")).hexdigest()[:12]
+    return Path.home() / ".cache" / "wrb-ws" / digest
 
 
 def _link(source: Path, target: Path) -> None:
