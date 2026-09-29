@@ -1,0 +1,76 @@
+{
+  "run_id": "p4-n311-hybrid",
+  "started_at": "2026-09-29T23:08:45.807757+00:00",
+  "corpus": {
+    "channels": [
+      "chart_native",
+      "chart_only",
+      "cross_file",
+      "format",
+      "formula",
+      "hidden",
+      "layout",
+      "locked",
+      "scanned",
+      "text",
+      "version"
+    ],
+    "generator_version": 2,
+    "locale": "ja",
+    "n_files_requested": 250,
+    "n_files_written": 311,
+    "n_filler_files": 163,
+    "n_questions": 66,
+    "questions_per_channel": 6,
+    "seed": 42
+  },
+  "model": "claude-sonnet-5",
+  "auth": "cli",
+  "arms": [
+    "hybrid"
+  ],
+  "k_values": [
+    20
+  ],
+  "modes": [
+    "forced"
+  ],
+  "repeats": 1,
+  "n_questions": 66,
+  "arm_config": {
+    "hybrid": {
+      "retrieval": {
+        "n_chunks": 664,
+        "chunk_chars": 1200,
+        "overlap_chars": 200,
+        "embedding_model": "BAAI/bge-m3",
+        "retrieval": "bm25 + dense (RRF)",
+        "reranker": null
+      },
+      "agent": {
+        "index": "catalog + markdown mirror",
+        "n_files": 326,
+        "n_mirrored": 255,
+        "tools": [
+          "mcp__wrb__list_files",
+          "mcp__wrb__read_file",
+          "mcp__wrb__grep",
+          "mcp__wrb__run_python",
+          "mcp__wrb__view_image"
+        ],
+        "max_turns": 40,
+        "mirror_extractor": "arms.classical.extract"
+      },
+      "n_candidate_files": 20,
+      "narrowing": "file-level (not chunk-level)",
+      "narrowing_enforcement": "per-question workspace of hard links"
+    }
+  },
+  "k_values_per_arm": {
+    "hybrid": [
+      20
+    ]
+  },
+  "finished_at": "2026-09-29T23:52:13.011774+00:00",
+  "executed_calls": 66
+}

@@ -181,6 +181,11 @@ def test_workspace_holds_only_the_candidates(corpus: Path) -> None:
             "作業ディレクトリをコーパスの近くに置くと .. で本物に出られる"
         )
         assert corpus.name not in str(workspace), "パスにコーパス名を含めない（監査の前提）"
+
+        # 作業ディレクトリ側を書き換えても原本は変わらない（ハードリンクにしない）
+        original = (corpus / "files" / candidates[0]).read_bytes()
+        (workspace / "files" / candidates[0]).write_bytes(b"overwritten by the agent")
+        assert (corpus / "files" / candidates[0]).read_bytes() == original
     finally:
         import shutil
 

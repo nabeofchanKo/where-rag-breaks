@@ -26,7 +26,7 @@
     ``read_file`` はミラー（``_index/mirror/``）を素通しし、``grep`` はカタログの
     全行を返し、``run_python`` は任意のコードなので原本をどれでも開けた。
     実測で、候補外のミラーや原本を開いた呼出が P3 にも P4 にもある。
-    そこで設問ごとに**候補ファイルだけをハードリンクした作業ディレクトリ**
+    そこで設問ごとに**候補ファイルだけを複製した作業ディレクトリ**
     （原本・ミラー・絞ったカタログ）を作り、エージェントにはそこだけを渡す。
     これなら run_python でも候補外には届かない。作業ディレクトリはリポジトリの
     外に置く（``..`` で本物のコーパスや results/ に出られないように）。
@@ -86,7 +86,7 @@ class HybridArm:
             "n_candidate_files": self.k,
             "narrowing": "file-level (not chunk-level)",
             # P3 は道具ごとの検査（抜け道あり）。P4 から物理的な作業ディレクトリ。
-            "narrowing_enforcement": "per-question workspace of hard links",
+            "narrowing_enforcement": "per-question workspace of copies",
         }
 
     def _candidate_files(self, question: str) -> list[str]:
@@ -175,17 +175,17 @@ class HybridArm:
         return workspace_for(corpus)
 
     def build_workspace(self, candidates: list[str]) -> Path:
-        """候補ファイルだけを持つコーパスの複製を作る（中身はハードリンク）。"""
+        """候補ファイルだけを持つコーパスの複製を作る。"""
         corpus = self.agentic._require_corpus()  # noqa: SLF001
         workspace = self.workspace_dir()
         if workspace.exists():
             shutil.rmtree(workspace)
 
         for rel in candidates:
-            _link(corpus / "files" / rel, workspace / "files" / rel)
+            _copy(corpus / "files" / rel, workspace / "files" / rel)
             mirror = corpus / "_index" / "mirror" / f"{rel}.md"
             if mirror.is_file():
-                _link(mirror, workspace / "_index" / "mirror" / f"{rel}.md")
+                _copy(mirror, workspace / "_index" / "mirror" / f"{rel}.md")
 
         # カタログは候補の行だけ残す（伏せた件数は P3 と同じ書式で明示する）
         catalog = (corpus / "_index" / "catalog.md").read_text(encoding="utf-8")
@@ -217,10 +217,13 @@ def workspace_for(corpus: Path) -> Path:
     return Path.home() / ".cache" / "wrb-ws" / digest
 
 
-def _link(source: Path, target: Path) -> None:
-    """ハードリンクを張る。張れない環境（別ボリューム等）では複製する。"""
+def _copy(source: Path, target: Path) -> None:
+    """複製する。
+
+    ★ ハードリンクにしてはいけない。エージェントが作業ディレクトリのファイルを
+      上書きすると、同じ実体を共有する原本まで書き換わる（311 ファイルの測り直しで
+      実際に起きた。SPEC §14-9）。候補は 1 問あたり数十件の小さなファイルなので
+      複製の手間は無視できる。
+    """
     target.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        os.link(source, target)
-    except OSError:
-        shutil.copy2(source, target)
+    shutil.copy2(source, target)
