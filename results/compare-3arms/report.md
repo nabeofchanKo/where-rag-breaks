@@ -5,7 +5,7 @@
 - モデル: `claude-sonnet-5`  認証: `cli`
 - コーパス: seed `42` / locale `ja` / generator_version `2`
 - アーム: agentic, classical, hybrid
-- 重ねた run: p1-seed42-ja-k8, p1-version-v2-k8, p2-agentic-forced, p3-hybrid-forced（同じアーム×チャネルが重複した場合は後の run を採用）
+- 重ねた run: p1-seed42-ja-k8, p1-version-v2-k8, p2-agentic-forced, p2-agentic-abstain, p3-hybrid-forced, p3-hybrid-abstain（同じアーム×チャネルが重複した場合は後の run を採用）
 - k: [8]  モード: ['forced', 'abstain_ok']  反復: 3
 - CLI の固定オーバーヘッド（この run から推定）: **0 トークン/呼出**
 
@@ -26,8 +26,8 @@
 
 ### 密閉性の検証（SPEC §4-2）
 
-- ツールが結果を返した回数: **2563**（Arm A は 0 でなければ無効）
-- 往復が 1 回で終わらなかった呼出: **396**
+- ツールが結果を返した回数: **5277**（Arm A は 0 でなければ無効）
+- 往復が 1 回で終わらなかった呼出: **792**
 
 ### 採点
 
@@ -42,11 +42,45 @@
 ![channel_heatmap](figures/channel_heatmap.png)
 ![channel_heatmap_abstain_ok](figures/channel_heatmap_abstain_ok.png)
 ![cost_accuracy](figures/cost_accuracy.png)
+![abstention_map](figures/abstention_map.png)
 
 ## チャネル × 難易度（= 罠の機構）
 
 | arm       | mode       | channel      |   difficulty |   total |   correct |   incorrect |   answered |   accuracy |   penalized |   answer_rate |   precision |   decoy_rate |
 |:----------|:-----------|:-------------|-------------:|--------:|----------:|------------:|-----------:|-----------:|------------:|--------------:|------------:|-------------:|
+| agentic   | abstain_ok | chart_native |            1 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| agentic   | abstain_ok | chart_native |            2 |   6.000 |     2.000 |       0.000 |      2.000 |      0.333 |       0.333 |         0.333 |       1.000 |      nan     |
+| agentic   | abstain_ok | chart_native |            3 |   6.000 |     5.000 |       0.000 |      5.000 |      0.833 |       0.833 |         0.833 |       1.000 |        0.000 |
+| agentic   | abstain_ok | chart_only   |            1 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| agentic   | abstain_ok | chart_only   |            2 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| agentic   | abstain_ok | chart_only   |            3 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |        0.000 |
+| agentic   | abstain_ok | cross_file   |            1 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| agentic   | abstain_ok | cross_file   |            2 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| agentic   | abstain_ok | cross_file   |            3 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |        0.000 |
+| agentic   | abstain_ok | format       |            1 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| agentic   | abstain_ok | format       |            2 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| agentic   | abstain_ok | format       |            3 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |        0.000 |
+| agentic   | abstain_ok | formula      |            1 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| agentic   | abstain_ok | formula      |            2 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| agentic   | abstain_ok | formula      |            3 |   6.000 |     3.000 |       3.000 |      6.000 |      0.500 |       0.000 |         1.000 |       0.500 |        0.500 |
+| agentic   | abstain_ok | hidden       |            1 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| agentic   | abstain_ok | hidden       |            2 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| agentic   | abstain_ok | hidden       |            3 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |        0.000 |
+| agentic   | abstain_ok | layout       |            1 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| agentic   | abstain_ok | layout       |            2 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| agentic   | abstain_ok | layout       |            3 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |        0.000 |
+| agentic   | abstain_ok | locked       |            1 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| agentic   | abstain_ok | locked       |            2 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| agentic   | abstain_ok | locked       |            3 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |        0.000 |
+| agentic   | abstain_ok | scanned      |            1 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| agentic   | abstain_ok | scanned      |            2 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| agentic   | abstain_ok | scanned      |            3 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |        0.000 |
+| agentic   | abstain_ok | text         |            1 |   9.000 |     9.000 |       0.000 |      9.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| agentic   | abstain_ok | text         |            2 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| agentic   | abstain_ok | text         |            3 |   3.000 |     3.000 |       0.000 |      3.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| agentic   | abstain_ok | version      |            1 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |        0.000 |
+| agentic   | abstain_ok | version      |            2 |   6.000 |     2.000 |       4.000 |      6.000 |      0.333 |      -0.333 |         1.000 |       0.333 |        0.667 |
+| agentic   | abstain_ok | version      |            3 |   6.000 |     0.000 |       6.000 |      6.000 |      0.000 |      -1.000 |         1.000 |       0.000 |        1.000 |
 | agentic   | forced     | chart_native |            1 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
 | agentic   | forced     | chart_native |            2 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
 | agentic   | forced     | chart_native |            3 |   6.000 |     5.000 |       1.000 |      6.000 |      0.833 |       0.667 |         1.000 |       0.833 |        0.000 |
@@ -146,6 +180,39 @@
 | classical | forced     | version      |            1 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |        0.000 |
 | classical | forced     | version      |            2 |   6.000 |     3.000 |       3.000 |      6.000 |      0.500 |       0.000 |         1.000 |       0.500 |        0.500 |
 | classical | forced     | version      |            3 |   6.000 |     5.000 |       0.000 |      5.000 |      0.833 |       0.833 |         0.833 |       1.000 |        0.000 |
+| hybrid    | abstain_ok | chart_native |            1 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| hybrid    | abstain_ok | chart_native |            2 |   6.000 |     3.000 |       0.000 |      3.000 |      0.500 |       0.500 |         0.500 |       1.000 |      nan     |
+| hybrid    | abstain_ok | chart_native |            3 |   6.000 |     3.000 |       1.000 |      4.000 |      0.500 |       0.333 |         0.667 |       0.750 |        0.167 |
+| hybrid    | abstain_ok | chart_only   |            1 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| hybrid    | abstain_ok | chart_only   |            2 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| hybrid    | abstain_ok | chart_only   |            3 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |        0.000 |
+| hybrid    | abstain_ok | cross_file   |            1 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| hybrid    | abstain_ok | cross_file   |            2 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| hybrid    | abstain_ok | cross_file   |            3 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |        0.000 |
+| hybrid    | abstain_ok | format       |            1 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| hybrid    | abstain_ok | format       |            2 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| hybrid    | abstain_ok | format       |            3 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |        0.000 |
+| hybrid    | abstain_ok | formula      |            1 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| hybrid    | abstain_ok | formula      |            2 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| hybrid    | abstain_ok | formula      |            3 |   6.000 |     0.000 |       6.000 |      6.000 |      0.000 |      -1.000 |         1.000 |       0.000 |        1.000 |
+| hybrid    | abstain_ok | hidden       |            1 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| hybrid    | abstain_ok | hidden       |            2 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| hybrid    | abstain_ok | hidden       |            3 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |        0.000 |
+| hybrid    | abstain_ok | layout       |            1 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| hybrid    | abstain_ok | layout       |            2 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| hybrid    | abstain_ok | layout       |            3 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |        0.000 |
+| hybrid    | abstain_ok | locked       |            1 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| hybrid    | abstain_ok | locked       |            2 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| hybrid    | abstain_ok | locked       |            3 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |        0.000 |
+| hybrid    | abstain_ok | scanned      |            1 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| hybrid    | abstain_ok | scanned      |            2 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| hybrid    | abstain_ok | scanned      |            3 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |        0.000 |
+| hybrid    | abstain_ok | text         |            1 |   9.000 |     9.000 |       0.000 |      9.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| hybrid    | abstain_ok | text         |            2 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| hybrid    | abstain_ok | text         |            3 |   3.000 |     3.000 |       0.000 |      3.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| hybrid    | abstain_ok | version      |            1 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |        0.000 |
+| hybrid    | abstain_ok | version      |            2 |   6.000 |     5.000 |       1.000 |      6.000 |      0.833 |       0.667 |         1.000 |       0.833 |        0.167 |
+| hybrid    | abstain_ok | version      |            3 |   6.000 |     0.000 |       6.000 |      6.000 |      0.000 |      -1.000 |         1.000 |       0.000 |        1.000 |
 | hybrid    | forced     | chart_native |            1 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
 | hybrid    | forced     | chart_native |            2 |   6.000 |     6.000 |       0.000 |      6.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
 | hybrid    | forced     | chart_native |            3 |   6.000 |     4.000 |       2.000 |      6.000 |      0.667 |       0.333 |         1.000 |       0.667 |        0.333 |
@@ -187,6 +254,17 @@
 
 | arm       | mode       | channel      |       k |   total |   correct |   incorrect |   answered |   accuracy |   penalized |   answer_rate |   precision |   decoy_rate |
 |:----------|:-----------|:-------------|--------:|--------:|----------:|------------:|-----------:|-----------:|------------:|--------------:|------------:|-------------:|
+| agentic   | abstain_ok | chart_native | nan     |  18.000 |    13.000 |       0.000 |     13.000 |      0.722 |       0.722 |         0.722 |       1.000 |        0.000 |
+| agentic   | abstain_ok | chart_only   | nan     |  18.000 |    18.000 |       0.000 |     18.000 |      1.000 |       1.000 |         1.000 |       1.000 |        0.000 |
+| agentic   | abstain_ok | cross_file   | nan     |  18.000 |    18.000 |       0.000 |     18.000 |      1.000 |       1.000 |         1.000 |       1.000 |        0.000 |
+| agentic   | abstain_ok | format       | nan     |  18.000 |    18.000 |       0.000 |     18.000 |      1.000 |       1.000 |         1.000 |       1.000 |        0.000 |
+| agentic   | abstain_ok | formula      | nan     |  18.000 |    15.000 |       3.000 |     18.000 |      0.833 |       0.667 |         1.000 |       0.833 |        0.500 |
+| agentic   | abstain_ok | hidden       | nan     |  18.000 |    18.000 |       0.000 |     18.000 |      1.000 |       1.000 |         1.000 |       1.000 |        0.000 |
+| agentic   | abstain_ok | layout       | nan     |  18.000 |    18.000 |       0.000 |     18.000 |      1.000 |       1.000 |         1.000 |       1.000 |        0.000 |
+| agentic   | abstain_ok | locked       | nan     |  18.000 |    18.000 |       0.000 |     18.000 |      1.000 |       1.000 |         1.000 |       1.000 |        0.000 |
+| agentic   | abstain_ok | scanned      | nan     |  18.000 |    18.000 |       0.000 |     18.000 |      1.000 |       1.000 |         1.000 |       1.000 |        0.000 |
+| agentic   | abstain_ok | text         | nan     |  18.000 |    18.000 |       0.000 |     18.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| agentic   | abstain_ok | version      | nan     |  18.000 |     8.000 |      10.000 |     18.000 |      0.444 |      -0.111 |         1.000 |       0.444 |        0.556 |
 | agentic   | forced     | chart_native | nan     |  18.000 |    17.000 |       1.000 |     18.000 |      0.944 |       0.889 |         1.000 |       0.944 |        0.000 |
 | agentic   | forced     | chart_only   | nan     |  18.000 |    17.000 |       1.000 |     18.000 |      0.944 |       0.889 |         1.000 |       0.944 |        0.000 |
 | agentic   | forced     | cross_file   | nan     |  18.000 |    18.000 |       0.000 |     18.000 |      1.000 |       1.000 |         1.000 |       1.000 |        0.000 |
@@ -220,6 +298,17 @@
 | classical | forced     | scanned      |   8.000 |  18.000 |     6.000 |      11.000 |     17.000 |      0.333 |      -0.278 |         0.944 |       0.353 |        0.500 |
 | classical | forced     | text         |   8.000 |  18.000 |    18.000 |       0.000 |     18.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
 | classical | forced     | version      |   8.000 |  18.000 |    14.000 |       3.000 |     17.000 |      0.778 |       0.611 |         0.944 |       0.824 |        0.167 |
+| hybrid    | abstain_ok | chart_native |  20.000 |  18.000 |    12.000 |       1.000 |     13.000 |      0.667 |       0.611 |         0.722 |       0.923 |        0.167 |
+| hybrid    | abstain_ok | chart_only   |  20.000 |  18.000 |    18.000 |       0.000 |     18.000 |      1.000 |       1.000 |         1.000 |       1.000 |        0.000 |
+| hybrid    | abstain_ok | cross_file   |  20.000 |  18.000 |    18.000 |       0.000 |     18.000 |      1.000 |       1.000 |         1.000 |       1.000 |        0.000 |
+| hybrid    | abstain_ok | format       |  20.000 |  18.000 |    18.000 |       0.000 |     18.000 |      1.000 |       1.000 |         1.000 |       1.000 |        0.000 |
+| hybrid    | abstain_ok | formula      |  20.000 |  18.000 |    12.000 |       6.000 |     18.000 |      0.667 |       0.333 |         1.000 |       0.667 |        1.000 |
+| hybrid    | abstain_ok | hidden       |  20.000 |  18.000 |    18.000 |       0.000 |     18.000 |      1.000 |       1.000 |         1.000 |       1.000 |        0.000 |
+| hybrid    | abstain_ok | layout       |  20.000 |  18.000 |    18.000 |       0.000 |     18.000 |      1.000 |       1.000 |         1.000 |       1.000 |        0.000 |
+| hybrid    | abstain_ok | locked       |  20.000 |  18.000 |    18.000 |       0.000 |     18.000 |      1.000 |       1.000 |         1.000 |       1.000 |        0.000 |
+| hybrid    | abstain_ok | scanned      |  20.000 |  18.000 |    18.000 |       0.000 |     18.000 |      1.000 |       1.000 |         1.000 |       1.000 |        0.000 |
+| hybrid    | abstain_ok | text         |  20.000 |  18.000 |    18.000 |       0.000 |     18.000 |      1.000 |       1.000 |         1.000 |       1.000 |      nan     |
+| hybrid    | abstain_ok | version      |  20.000 |  18.000 |    11.000 |       7.000 |     18.000 |      0.611 |       0.222 |         1.000 |       0.611 |        0.389 |
 | hybrid    | forced     | chart_native |  20.000 |  18.000 |    16.000 |       2.000 |     18.000 |      0.889 |       0.778 |         1.000 |       0.889 |        0.333 |
 | hybrid    | forced     | chart_only   |  20.000 |  18.000 |    17.000 |       1.000 |     18.000 |      0.944 |       0.889 |         1.000 |       0.944 |        0.000 |
 | hybrid    | forced     | cross_file   |  20.000 |  18.000 |    18.000 |       0.000 |     18.000 |      1.000 |       1.000 |         1.000 |       1.000 |        0.000 |
@@ -236,6 +325,17 @@
 
 | arm       | mode       | channel      |   accuracy_mean |   accuracy_min |   accuracy_max |   n_repeats |
 |:----------|:-----------|:-------------|----------------:|---------------:|---------------:|------------:|
+| agentic   | abstain_ok | chart_native |           0.722 |          0.667 |          0.833 |           3 |
+| agentic   | abstain_ok | chart_only   |           1.000 |          1.000 |          1.000 |           3 |
+| agentic   | abstain_ok | cross_file   |           1.000 |          1.000 |          1.000 |           3 |
+| agentic   | abstain_ok | format       |           1.000 |          1.000 |          1.000 |           3 |
+| agentic   | abstain_ok | formula      |           0.833 |          0.833 |          0.833 |           3 |
+| agentic   | abstain_ok | hidden       |           1.000 |          1.000 |          1.000 |           3 |
+| agentic   | abstain_ok | layout       |           1.000 |          1.000 |          1.000 |           3 |
+| agentic   | abstain_ok | locked       |           1.000 |          1.000 |          1.000 |           3 |
+| agentic   | abstain_ok | scanned      |           1.000 |          1.000 |          1.000 |           3 |
+| agentic   | abstain_ok | text         |           1.000 |          1.000 |          1.000 |           3 |
+| agentic   | abstain_ok | version      |           0.444 |          0.333 |          0.500 |           3 |
 | agentic   | forced     | chart_native |           0.944 |          0.833 |          1.000 |           3 |
 | agentic   | forced     | chart_only   |           0.944 |          0.833 |          1.000 |           3 |
 | agentic   | forced     | cross_file   |           1.000 |          1.000 |          1.000 |           3 |
@@ -269,6 +369,17 @@
 | classical | forced     | scanned      |           0.333 |          0.333 |          0.333 |           3 |
 | classical | forced     | text         |           1.000 |          1.000 |          1.000 |           3 |
 | classical | forced     | version      |           0.778 |          0.667 |          0.833 |           3 |
+| hybrid    | abstain_ok | chart_native |           0.667 |          0.500 |          1.000 |           3 |
+| hybrid    | abstain_ok | chart_only   |           1.000 |          1.000 |          1.000 |           3 |
+| hybrid    | abstain_ok | cross_file   |           1.000 |          1.000 |          1.000 |           3 |
+| hybrid    | abstain_ok | format       |           1.000 |          1.000 |          1.000 |           3 |
+| hybrid    | abstain_ok | formula      |           0.667 |          0.667 |          0.667 |           3 |
+| hybrid    | abstain_ok | hidden       |           1.000 |          1.000 |          1.000 |           3 |
+| hybrid    | abstain_ok | layout       |           1.000 |          1.000 |          1.000 |           3 |
+| hybrid    | abstain_ok | locked       |           1.000 |          1.000 |          1.000 |           3 |
+| hybrid    | abstain_ok | scanned      |           1.000 |          1.000 |          1.000 |           3 |
+| hybrid    | abstain_ok | text         |           1.000 |          1.000 |          1.000 |           3 |
+| hybrid    | abstain_ok | version      |           0.611 |          0.500 |          0.667 |           3 |
 | hybrid    | forced     | chart_native |           0.889 |          0.833 |          1.000 |           3 |
 | hybrid    | forced     | chart_only   |           0.944 |          0.833 |          1.000 |           3 |
 | hybrid    | forced     | cross_file   |           1.000 |          1.000 |          1.000 |           3 |

@@ -176,6 +176,43 @@ BM25 + BGE-m3 の RRF 融合、コーパス 311ファイル / 591チャンク。
   これだけでは判定できない。** 311ファイルという規模では agentic もまだ余裕が
   ある。判定には P4 のスケーリング測定（50 / 500 / 5,000）が要る。
 
+### 棄権を許すと何が変わるか（3アーム × 2モード）
+
+![abstention](results/compare-3arms/figures/abstention_map.png)
+
+| アーム | モード | 正答率 | 純スコア | 答えた率 | precision | コスト | 秒 |
+|---|---|---|---|---|---|---|---|
+| `classical` | 強制回答 | 0.449 | **−0.076** | 0.975 | 0.461 | $0.014 | 22.2 |
+| `classical` | **棄権あり** | 0.333 | **+0.288** | 0.379 | **0.880** | **$0.006** | 13.9 |
+| `agentic` | 強制回答 | 0.919 | +0.843 | 0.995 | 0.924 | $0.047 | 32.5 |
+| `agentic` | 棄権あり | 0.909 | +0.843 | 0.975 | 0.933 | $0.050 | 53.0 |
+| `hybrid` | 強制回答 | 0.919 | +0.838 | 1.000 | 0.919 | $0.039 | 29.1 |
+| `hybrid` | 棄権あり | 0.904 | +0.833 | 0.975 | 0.927 | $0.041 | 36.0 |
+
+**古典的RAGにいちばん効くのは「分からない」と言えるようにすることである。**
+純スコアが **−0.076 → +0.288** と負から正に反転する。正答率自体は下がる
+（0.449 → 0.333）のに、答えたぶんの precision が 0.461 → **0.880** に上がり、
+しかも**コストが半分**（$0.014 → $0.006）になる。読めないと分かった時点で
+答えるのをやめるので、無駄な生成が減る。
+
+**エージェントには棄権がほぼ無価値である。** 純スコアは 0.843 → 0.843 で
+変わらない。答えた率が 0.995 → 0.975 とほとんど動かないからで、
+**道具で何かを取得できた以上、常に「見つけた」と思っている**。
+
+上の図はそれがそのまま形に出ている。オレンジ（classical）は左＝黙る側に、
+青と緑（agentic / hybrid）は右端＝必ず答える側に張り付く。
+
+**唯一エージェントが負に落ちるのが `version`**（純スコア −0.111、答えた率 1.000、
+囮率 0.556）。古い版を掴んでいることに気づかないまま答え切るので、
+棄権できる設計でも救われない。`chart_native` では Arm B もちゃんと棄権して
+いる（答えた率 0.722 / precision 1.000）ので、**棄権できないのではなく、
+古い値のときだけ気づけない**。
+
+> 実務への含意: **古典的RAGを使い続けるなら、まず棄権を実装すること。**
+> 精度を上げるより効く。**エージェントに替えるなら、棄権は当てにならない。**
+> 古さの検出は別の仕組み（更新日の突き合わせ、キャッシュ値の再計算）で
+> やる必要がある。
+
 ### Arm B（agentic）との比較 — エージェントは万能ではない
 
 ![arm comparison](results/compare-armA-armB/figures/channel_heatmap.png)
@@ -535,6 +572,43 @@ Same corpus, same model, forced mode, N=3.
 - **H3 (hybrid pulls ahead as the corpus grows; a break-even point exists) cannot be
   decided from this.** At 311 files the agent is not yet strained. Deciding it needs
   the P4 scaling runs (50 / 500 / 5,000).
+
+### What abstention changes (three arms, two modes)
+
+![abstention](results/compare-3arms/figures/abstention_map.png)
+
+| Arm | Mode | accuracy | penalized | answer rate | precision | cost | s |
+|---|---|---|---|---|---|---|---|
+| `classical` | forced | 0.449 | **−0.076** | 0.975 | 0.461 | $0.014 | 22.2 |
+| `classical` | **abstain** | 0.333 | **+0.288** | 0.379 | **0.880** | **$0.006** | 13.9 |
+| `agentic` | forced | 0.919 | +0.843 | 0.995 | 0.924 | $0.047 | 32.5 |
+| `agentic` | abstain | 0.909 | +0.843 | 0.975 | 0.933 | $0.050 | 53.0 |
+| `hybrid` | forced | 0.919 | +0.838 | 1.000 | 0.919 | $0.039 | 29.1 |
+| `hybrid` | abstain | 0.904 | +0.833 | 0.975 | 0.927 | $0.041 | 36.0 |
+
+**The single most valuable thing you can give classical RAG is permission to say
+"I don't know."** The penalized score flips from **−0.076 to +0.288**. Accuracy
+itself falls (0.449 → 0.333), but precision among answered rises from 0.461 to
+**0.880** and the cost **halves** ($0.014 → $0.006), because it stops generating
+once it knows it cannot see.
+
+**Abstention buys the agent almost nothing.** Its penalized score is 0.843 either
+way, because its answer rate barely moves (0.995 → 0.975): having retrieved
+*something* with its tools, it always believes it found the answer.
+
+The figure shows exactly that. Orange (classical) hugs the left — declining —
+while blue and green (agentic, hybrid) sit against the right edge, always answering.
+
+**The one place the agent goes negative is `version`** (penalized −0.111, answer
+rate 1.000, decoy rate 0.556). It never notices it is holding a superseded edition,
+so being allowed to abstain does not save it. On `chart_native` it does abstain
+properly (answer rate 0.722, precision 1.000) — so it is not that it *cannot*
+decline, only that staleness is invisible to it.
+
+> Practical reading: **if you are keeping classical RAG, implement abstention
+> first** — it beats accuracy work. **If you are switching to an agent, do not rely
+> on abstention.** Detecting staleness needs a separate mechanism (comparing
+> revision dates, recomputing cached values).
 
 ### Comparing Arm B (agentic) — the agent is not uniformly better
 

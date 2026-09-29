@@ -1,0 +1,12 @@
+﻿arm,mode,channel,k,total,correct,incorrect,answered,accuracy,penalized,answer_rate,precision,decoy_rate
+agentic,abstain_ok,chart_native,,18.0,13.0,0.0,13.0,0.7222222222222222,0.7222222222222222,0.7222222222222222,1.0,0.0
+agentic,abstain_ok,chart_only,,18.0,18.0,0.0,18.0,1.0,1.0,1.0,1.0,0.0
+agentic,abstain_ok,cross_file,,18.0,18.0,0.0,18.0,1.0,1.0,1.0,1.0,0.0
+agentic,abstain_ok,format,,18.0,18.0,0.0,18.0,1.0,1.0,1.0,1.0,0.0
+agentic,abstain_ok,formula,,18.0,15.0,3.0,18.0,0.8333333333333334,0.6666666666666666,1.0,0.8333333333333334,0.5
+agentic,abstain_ok,hidden,,18.0,18.0,0.0,18.0,1.0,1.0,1.0,1.0,0.0
+agentic,abstain_ok,layout,,18.0,18.0,0.0,18.0,1.0,1.0,1.0,1.0,0.0
+agentic,abstain_ok,locked,,18.0,18.0,0.0,18.0,1.0,1.0,1.0,1.0,0.0
+agentic,abstain_ok,scanned,,18.0,18.0,0.0,18.0,1.0,1.0,1.0,1.0,0.0
+agentic,abstain_ok,text,,18.0,18.0,0.0,18.0,1.0,1.0,1.0,1.0,
+agentic,abstain_ok,version,,18.0,8.0,10.0,18.0,0.4444444444444444,-0.1111111111111111,1.0,0.4444444444444444,0.5555555555555556
