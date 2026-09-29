@@ -26,6 +26,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from arms.agentic.arm import AgenticArm
@@ -129,9 +130,22 @@ class HybridArm:
             parent = PurePosixPath(rel).parent
             if any(parent == root or root in parent.parents for root in roots):
                 found.append(rel)
-                if len(found) >= self.k * 2:  # 候補が膨らみすぎないように頭打ち
-                    break
-        return found
+
+        # ★ 頭打ちの前に「選ばれたファイルに名前が近い順」に並べる（SPEC §14-9）。
+        #   名前順のまま切ると、規模が大きくなって同じディレクトリに埋め草の
+        #   zip や画像が数百件並んだとき、本命の付随ファイルが名前順で
+        #   切り落とされる（1,524 ファイルで locked の全問がこれで詰んだ）。
+        #   それは方式の限界ではなく打ち切り方の手抜きである。
+        #   使うのはファイル名どうしの共通接頭辞の長さだけで、正解は見ていない。
+        #   実際の文書管理でも、添付や図版は本体と同じ文書番号で名付けられる。
+        names = [PurePosixPath(path).name for path in selected]
+
+        def affinity(rel: str) -> int:
+            name = PurePosixPath(rel).name
+            return max((len(os.path.commonprefix([name, other])) for other in names), default=0)
+
+        found.sort(key=lambda rel: (-affinity(rel), rel))
+        return found[: self.k * 2]  # 候補が膨らみすぎないように頭打ち
 
     def answer(self, question: str, mode: AnswerMode) -> ArmAnswer:
         candidates = self._candidate_files(question)

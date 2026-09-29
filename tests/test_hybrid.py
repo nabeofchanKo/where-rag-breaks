@@ -113,6 +113,33 @@ def test_companions_bring_in_unindexable_neighbours(corpus: Path) -> None:
     assert all(c not in indexable for c in companions), "索引可能なファイルが混ざっている"
 
 
+def test_companion_cap_keeps_the_matching_file(corpus: Path) -> None:
+    """★ 付随ファイルが上限を超えても、本体と同じ名前の図版は切り落とされないこと。
+
+    名前順で切ると、規模が大きくなって同じディレクトリに埋め草の図版が
+    並んだとき本命が落ちる（1,524 ファイルで locked の全問が詰んだ。SPEC §14-9）。
+    ここでは本命の図版が**名前順で最後**になる資料を選び、上限を 2 件に絞る。
+    """
+    from arms.classical.extract import extract_corpus
+    from arms.hybrid.arm import HybridArm
+
+    indexable = {b.path for b in extract_corpus(corpus / "files")}
+    images = sorted(p for p in _all_files(corpus) if p.endswith(".png") and p not in indexable)
+    assert len(images) > 2, "図版が上限以下しか無い（このテストの前提が崩れている）"
+
+    last = images[-1]
+    code = last.rsplit("/", 1)[-1].split("_")[0]
+    deck = next(p for p in _all_files(corpus) if p.endswith(".pptx") and f"/{code}_" in p)
+
+    arm = HybridArm(k=1)  # 上限は 2k = 2 件
+    arm.classical._index = _FakeIndex(indexable)  # noqa: SLF001
+    arm.agentic.corpus = corpus.resolve()
+
+    companions = arm._companions([deck])  # noqa: SLF001
+    assert len(companions) == 2
+    assert last in companions, "名前順で最後の本命の図版が上限で切り落とされた"
+
+
 class _FakeIndex:
     """``_companions`` が見るのは ``chunks`` の path だけ。"""
 
