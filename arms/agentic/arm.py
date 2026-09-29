@@ -159,16 +159,24 @@ class AgenticArm:
         system = SYSTEM_PROMPT_EN if self.locale == "en" else SYSTEM_PROMPT_JA
         prompt = template.format(question=question, contract=contract_for(self.locale, mode))
 
-        result = complete(
-            prompt,
-            system_prompt=system,
-            model=self.model,
-            allowed_tools=TOOL_NAMES,
-            cwd=corpus,
-            max_turns=self.max_turns,
-            mcp_servers={"wrb": server},
-        )
+        before = snapshot(corpus)
+        try:
+            result = complete(
+                prompt,
+                system_prompt=system,
+                model=self.model,
+                allowed_tools=TOOL_NAMES,
+                cwd=corpus,
+                max_turns=self.max_turns,
+                mcp_servers={"wrb": server},
+            )
+        finally:
+            _, altered = restore(corpus, before)
         payload = parse_json_answer(result.text)
+        error = result.error
+        if altered:
+            # 原本や索引が書き換えられたら、以降の設問の前提が崩れている。黙って続けない。
+            error = "; ".join(filter(None, [error, f"コーパスが書き換えられた: {', '.join(altered[:5])}"]))
 
         return ArmAnswer.from_payload(
             payload,
@@ -184,10 +192,53 @@ class AgenticArm:
             files_opened=sorted(set(ctx.files_opened)),
             k=None,
             model=result.model,
-            error=result.error,
+            error=error,
         )
 
     def _require_corpus(self) -> Path:
         if self.corpus is None:
             raise RuntimeError("prepare() を先に呼ぶこと")
         return self.corpus
+
+
+# ── 設問間の密閉（SPEC §14-9）────────────────────────────────────────
+# run_python の作業ディレクトリはコーパス直下なので、エージェントが書いた
+# 一時ファイル（zip の展開結果、PDF の描画など）がそのまま残り、**後の設問や
+# 同じ設問の反復から見えてしまう**。P2/P3 の記録を全数検査して実害は無かったが、
+# 穴は塞ぐ。設問ごとに前後のファイル一覧を比べ、増えたものを消す。
+def snapshot(root: Path) -> dict[Path, tuple[int, int]]:
+    """配下の全ファイルの (サイズ, 更新時刻)。"""
+    out: dict[Path, tuple[int, int]] = {}
+    for path in root.rglob("*"):
+        if path.is_file():
+            stat = path.stat()
+            out[path] = (stat.st_size, stat.st_mtime_ns)
+    return out
+
+
+def restore(root: Path, before: dict[Path, tuple[int, int]]) -> tuple[list[str], list[str]]:
+    """増えたファイルと空になったディレクトリを消す。返り値は (消したもの, 書き換えられたもの)。
+
+    書き換えられた既存ファイルは戻せない（原本の控えを持っていない）ので、
+    呼び出し側でエラーとして記録させる。
+    """
+    removed: list[str] = []
+    altered: list[str] = []
+    for path in sorted(root.rglob("*"), key=lambda p: len(p.parts), reverse=True):
+        rel = path.relative_to(root).as_posix()
+        if path.is_file():
+            if path not in before:
+                path.unlink()
+                removed.append(rel)
+            elif _stat(path) != before[path]:
+                altered.append(rel)
+        elif path.is_dir() and not any(path.iterdir()) and not any(
+            p.is_relative_to(path) for p in before
+        ):
+            path.rmdir()
+    return removed, altered
+
+
+def _stat(path: Path) -> tuple[int, int]:
+    stat = path.stat()
+    return stat.st_size, stat.st_mtime_ns
