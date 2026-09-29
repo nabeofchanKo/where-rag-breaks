@@ -10,6 +10,7 @@ venv/
 # ── 生成コーパス（スクリプトで再生成できるのでコミットしない）──
 # 同 seed なら同じものが再生成される（tests/test_determinism.py で保証）
 corpus/
+corpus-*/
 
 # ── 実行結果の中間物 ─────────────────────────────────────
 # results/<run_id>/ 自体は成果物なのでコミットする（figures と scored.csv）。

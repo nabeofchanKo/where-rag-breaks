@@ -103,6 +103,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="棄権の扱い（SPEC §4-2）。既定は abstain_ok と forced の両方",
     )
     p.add_argument("--channels", default="", help="対象チャネルを絞る（カンマ区切り、既定は全部）")
+    p.add_argument("--qids", default="", help="対象の設問を qid で絞る（カンマ区切り。パイロット用）")
     p.add_argument("--limit", type=int, default=0, help="設問数の上限（0 で無制限。動作確認用）")
     p.add_argument("--run-id", default="", help="既存の run に追記して再開する場合に指定")
     p.add_argument("--results", type=Path, default=Path("results"))
@@ -125,6 +126,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.channels:
         wanted = {c.strip() for c in args.channels.split(",") if c.strip()}
         items = [it for it in items if it.channel in wanted]
+    if args.qids:
+        wanted_qids = {q.strip() for q in args.qids.split(",") if q.strip()}
+        missing = wanted_qids - {it.qid for it in items}
+        if missing:
+            print(f"コーパスに無い qid: {', '.join(sorted(missing))}", file=sys.stderr)
+            return 2
+        items = [it for it in items if it.qid in wanted_qids]
     if args.limit:
         items = items[: args.limit]
     if not items:
@@ -144,6 +152,21 @@ def main(argv: list[str] | None = None) -> int:
     run_dir = args.results / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
     raw_path = run_dir / "raw.jsonl"
+
+    # ★ 再開時は同じコーパスであることを確かめる。P4 では規模違いのコーパスが
+    #   並ぶので、--corpus を取り違えると別コーパスの結果が同じ run に混ざる
+    #   （qid は規模をまたいで同じなので、記録済みとして黙ってスキップされる）。
+    previous_meta = run_dir / "meta.json"
+    if previous_meta.is_file():
+        previous = json.loads(previous_meta.read_text(encoding="utf-8")).get("corpus")
+        if previous != corpus_meta:
+            print(
+                f"エラー: {run_id} は別のコーパスで記録されている"
+                f"（記録: {previous.get('n_files_written') if previous else '?'} ファイル、"
+                f"今回: {corpus_meta.get('n_files_written')} ファイル）。--corpus を確かめること",
+                file=sys.stderr,
+            )
+            return 2
     done = _load_done(raw_path)
 
     planned = sum(
