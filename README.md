@@ -4,8 +4,11 @@
 >
 > A benchmark that measures **which information channels break classical RAG** (chunk + embed + top-k), using a synthetic corpus with automatically-derived ground truth.
 
-**ステータス: P3 完了。11チャネル + 3アームすべてが動き、チャネル別ヒートマップが出ている。次は P4（スケーリング）。**
-**Status: P3 done. Eleven channels and all three arms run, and the channel heatmap exists. P4 (scaling) is next.**
+**ステータス: P3 + 棄権モードまで完了。11チャネル × 3アーム × 2モードの測定が揃っている。**
+**次にやることは [docs/next-steps.md](docs/next-steps.md) に書いてある（P4 スケーリング / P5 実データ検証）。**
+
+**Status: P3 plus both abstention modes are done — eleven channels, three arms, two modes.**
+**What comes next is written up in [docs/next-steps.md](docs/next-steps.md) (P4 scaling, P5 real-data validation).**
 
 ---
 
