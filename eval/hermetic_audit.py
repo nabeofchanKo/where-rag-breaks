@@ -68,7 +68,9 @@ def audit(corpus: Path, since: str = "") -> dict:
             message = record.get("message")
             content = message.get("content") if isinstance(message, dict) else None
             if record.get("type") == "user" and not question:
-                text = content if isinstance(content, str) else json.dumps(content, ensure_ascii=False)
+                text = (
+                    content if isinstance(content, str) else json.dumps(content, ensure_ascii=False)
+                )
                 if "質問" in text or "Question" in text:
                     tail = re.split(r"質問|Question", text, maxsplit=1)[1][:300]
                     question = set(CODE.findall(tail))
@@ -109,9 +111,13 @@ def main(argv: list[str] | None = None) -> int:
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(encoding="utf-8")
 
-    p = argparse.ArgumentParser(prog="python -m eval.hermetic_audit", description=__doc__.split("\n")[0])
+    p = argparse.ArgumentParser(
+        prog="python -m eval.hermetic_audit", description=__doc__.split("\n")[0]
+    )
     p.add_argument("--corpus", type=Path, required=True)
-    p.add_argument("--since", default="", help="この時刻（ISO 8601, UTC）以降に始まったセッションだけ")
+    p.add_argument(
+        "--since", default="", help="この時刻（ISO 8601, UTC）以降に始まったセッションだけ"
+    )
     p.add_argument("--out", type=Path, default=None, help="結果を JSON で保存する場所")
     args = p.parse_args(argv)
 
@@ -127,7 +133,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.out:
         args.out.parent.mkdir(parents=True, exist_ok=True)
-        args.out.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        args.out.write_text(
+            json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
     return 1 if result["answer_files"] or result["foreign_codes"] else 0
 
 

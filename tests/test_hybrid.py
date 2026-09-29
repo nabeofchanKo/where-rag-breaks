@@ -145,3 +145,36 @@ class _FakeIndex:
 
     def __init__(self, paths: set[str]) -> None:
         self.chunks = [type("C", (), {"path": p})() for p in sorted(paths)]
+
+
+# ── 物理的な絞り込み（SPEC §14-9）────────────────────────────────────
+def test_workspace_holds_only_the_candidates(corpus: Path) -> None:
+    """★ 候補外のファイルは作業ディレクトリに**存在しない**こと。
+
+    P3 では道具ごとの検査で絞っていたが、read_file はミラーを素通しし、
+    run_python は原本をどれでも開けた。物理的に置かなければ、どの道具でも届かない。
+    """
+    from arms.hybrid.arm import HybridArm
+
+    everything = _all_files(corpus)
+    candidates = [p for p in everything if p.endswith(".pptx")][:1]
+    outside = [p for p in everything if p not in candidates]
+    assert outside, "候補外のファイルが無い（このテストの前提が崩れている）"
+
+    arm = HybridArm(k=5)
+    arm.agentic.corpus = corpus.resolve()
+    workspace = arm.build_workspace(candidates)
+
+    present = sorted(
+        p.relative_to(workspace / "files").as_posix()
+        for p in (workspace / "files").rglob("*")
+        if p.is_file()
+    )
+    assert present == candidates
+    mirrors = [p.name for p in (workspace / "_index" / "mirror").rglob("*.md")]
+    assert mirrors == [f"{Path(candidates[0]).name}.md"]
+
+    catalog = (workspace / "_index" / "catalog.md").read_text(encoding="utf-8")
+    assert candidates[0] in catalog
+    assert not any(f"`{p}`" in catalog for p in outside), "カタログに候補外の行が残っている"
+    assert workspace.parent == corpus.resolve().parent, "作業ディレクトリはコーパスの外に置く"

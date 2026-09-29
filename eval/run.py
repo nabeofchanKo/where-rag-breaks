@@ -103,7 +103,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="棄権の扱い（SPEC §4-2）。既定は abstain_ok と forced の両方",
     )
     p.add_argument("--channels", default="", help="対象チャネルを絞る（カンマ区切り、既定は全部）")
-    p.add_argument("--qids", default="", help="対象の設問を qid で絞る（カンマ区切り。パイロット用）")
+    p.add_argument(
+        "--qids", default="", help="対象の設問を qid で絞る（カンマ区切り。パイロット用）"
+    )
     p.add_argument("--limit", type=int, default=0, help="設問数の上限（0 で無制限。動作確認用）")
     p.add_argument("--run-id", default="", help="既存の run に追記して再開する場合に指定")
     p.add_argument("--results", type=Path, default=Path("results"))

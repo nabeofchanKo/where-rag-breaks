@@ -20,16 +20,25 @@
 ★ **絞ったらカタログもミラーも連動して絞る**
     候補を N 件にしてもカタログに全ファイルが並んでいたら、エージェントは
     そこから好きなものを選べてしまい「絞ってから渡す」設計が成立しない。
-    ``ToolContext.allowed`` を通じて ``list_files`` / ``read_file`` /
-    ``grep`` / ``run_python`` のすべてが同じ範囲に閉じる。
+
+★ **絞り込みは道具の検査ではなく、物理的な作業ディレクトリで行う**（SPEC §14-9）
+    P3 では ``ToolContext.allowed`` で道具ごとに弾いていたが、抜け道が 3 つあった。
+    ``read_file`` はミラー（``_index/mirror/``）を素通しし、``grep`` はカタログの
+    全行を返し、``run_python`` は任意のコードなので原本をどれでも開けた。
+    実測で、候補外のミラーや原本を開いた呼出が P3 にも P4 にもある。
+    そこで設問ごとに**候補ファイルだけをハードリンクした作業ディレクトリ**
+    （原本・ミラー・絞ったカタログ）を作り、エージェントにはそこだけを渡す。
+    これなら run_python でも候補外には届かない。
 """
 
 from __future__ import annotations
 
 import os
+import shutil
 from pathlib import Path
 
 from arms.agentic.arm import AgenticArm
+from arms.agentic.tools import ToolContext
 from arms.base import AnswerMode, ArmAnswer
 from arms.classical.arm import ClassicalArm
 
@@ -74,6 +83,8 @@ class HybridArm:
             "agent": self.agentic.index_stats,
             "n_candidate_files": self.k,
             "narrowing": "file-level (not chunk-level)",
+            # P3 は道具ごとの検査（抜け道あり）。P4 から物理的な作業ディレクトリ。
+            "narrowing_enforcement": "per-question workspace of hard links",
         }
 
     def _candidate_files(self, question: str) -> list[str]:
@@ -147,17 +158,57 @@ class HybridArm:
         found.sort(key=lambda rel: (-affinity(rel), rel))
         return found[: self.k * 2]  # 候補が膨らみすぎないように頭打ち
 
+    def workspace_dir(self) -> Path:
+        """作業ディレクトリの場所。コーパスの隣に固定する。
+
+        固定するのは、CLI のセッション記録が作業ディレクトリ名ごとにまとまるため
+        （``eval.hermetic_audit --corpus <ここ>`` で監査できる）。コーパスの中に
+        置くと Arm B から見えてしまうので、必ず外に置く。
+        """
+        corpus = self.agentic._require_corpus()  # noqa: SLF001
+        return corpus.parent / f".ws-{corpus.name}"
+
+    def build_workspace(self, candidates: list[str]) -> Path:
+        """候補ファイルだけを持つコーパスの複製を作る（中身はハードリンク）。"""
+        corpus = self.agentic._require_corpus()  # noqa: SLF001
+        workspace = self.workspace_dir()
+        if workspace.exists():
+            shutil.rmtree(workspace)
+
+        for rel in candidates:
+            _link(corpus / "files" / rel, workspace / "files" / rel)
+            mirror = corpus / "_index" / "mirror" / f"{rel}.md"
+            if mirror.is_file():
+                _link(mirror, workspace / "_index" / "mirror" / f"{rel}.md")
+
+        # カタログは候補の行だけ残す（伏せた件数は P3 と同じ書式で明示する）
+        catalog = (corpus / "_index" / "catalog.md").read_text(encoding="utf-8")
+        narrowed = ToolContext(corpus, allowed=set(candidates)).filter_catalog(catalog)
+        (workspace / "_index").mkdir(parents=True, exist_ok=True)
+        (workspace / "_index" / "catalog.md").write_text(narrowed, encoding="utf-8", newline="\n")
+        return workspace
+
     def answer(self, question: str, mode: AnswerMode) -> ArmAnswer:
         candidates = self._candidate_files(question)
 
-        # ★ 絞った範囲をエージェントに渡す。カタログもミラーも連動して絞られる。
-        self.agentic.allowed_files = set(candidates)
+        # ★ 絞った範囲だけを物理的に渡す。エージェントの作業ディレクトリごと差し替える。
+        corpus = self.agentic.corpus
+        self.agentic.corpus = self.build_workspace(candidates)
         try:
             out = self.agentic.answer(question, mode)
         finally:
-            self.agentic.allowed_files = None
+            self.agentic.corpus = corpus
 
         out.k = self.k
         # 診断用。候補に正解のファイルが入っていたかを後から確かめられる。
         out.retrieved = candidates
         return out
+
+
+def _link(source: Path, target: Path) -> None:
+    """ハードリンクを張る。張れない環境（別ボリューム等）では複製する。"""
+    target.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        os.link(source, target)
+    except OSError:
+        shutil.copy2(source, target)

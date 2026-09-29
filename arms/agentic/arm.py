@@ -176,7 +176,8 @@ class AgenticArm:
         error = result.error
         if altered:
             # 原本や索引が書き換えられたら、以降の設問の前提が崩れている。黙って続けない。
-            error = "; ".join(filter(None, [error, f"コーパスが書き換えられた: {', '.join(altered[:5])}"]))
+            note = f"コーパスが書き換えられた: {', '.join(altered[:5])}"
+            error = "; ".join(filter(None, [error, note]))
 
         return ArmAnswer.from_payload(
             payload,

@@ -1,0 +1,12 @@
+﻿arm,mode,channel,accuracy_mean,accuracy_min,accuracy_max,n_repeats
+hybrid,forced,chart_native,1.0,1.0,1.0,1
+hybrid,forced,chart_only,1.0,1.0,1.0,1
+hybrid,forced,cross_file,1.0,1.0,1.0,1
+hybrid,forced,format,1.0,1.0,1.0,1
+hybrid,forced,formula,0.6666666666666666,0.6666666666666666,0.6666666666666666,1
+hybrid,forced,hidden,1.0,1.0,1.0,1
+hybrid,forced,layout,1.0,1.0,1.0,1
+hybrid,forced,locked,1.0,1.0,1.0,1
+hybrid,forced,scanned,1.0,1.0,1.0,1
+hybrid,forced,text,1.0,1.0,1.0,1
+hybrid,forced,version,0.3333333333333333,0.3333333333333333,0.3333333333333333,1

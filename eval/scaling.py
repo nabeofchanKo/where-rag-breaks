@@ -75,7 +75,11 @@ def summarise(frame: pd.DataFrame, keys: list[str]) -> pd.DataFrame:
         .agg(accuracy=("correct", "mean"))
         .reset_index()
         .groupby(keys)
-        .agg(acc_min=("accuracy", "min"), acc_max=("accuracy", "max"), n_repeats=("repeat", "nunique"))
+        .agg(
+            acc_min=("accuracy", "min"),
+            acc_max=("accuracy", "max"),
+            n_repeats=("repeat", "nunique"),
+        )
     )
     frame = frame.assign(incorrect=frame["answered"] & ~frame["correct"])
     main = frame.groupby(keys).agg(
@@ -109,12 +113,18 @@ def scaling_figure(summary: pd.DataFrame, out: Path, lab: Labels, auth: str) -> 
             if column == "accuracy":
                 spread = part[part["n_repeats"] > 1]
                 ax.vlines(
-                    spread["n_files"], spread["acc_min"], spread["acc_max"],
-                    color=style["color"], alpha=0.5, linewidth=4,
+                    spread["n_files"],
+                    spread["acc_min"],
+                    spread["acc_max"],
+                    color=style["color"],
+                    alpha=0.5,
+                    linewidth=4,
                 )
         ax.set_xscale("log")
         ax.set_xticks(sorted(summary["n_files"].unique()))
-        ax.get_xaxis().set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v, _: f"{int(v):,}"))
+        ax.get_xaxis().set_major_formatter(
+            matplotlib.ticker.FuncFormatter(lambda v, _: f"{int(v):,}")
+        )
         ax.minorticks_off()
         ax.set_xlabel(lab("コーパスのファイル数（対数）", "files in corpus (log)"))
         ax.set_ylabel(ylabel)
@@ -123,9 +133,7 @@ def scaling_figure(summary: pd.DataFrame, out: Path, lab: Labels, auth: str) -> 
             ax.set_ylim(-0.05, 1.05)
             ax.legend(title=lab("アーム", "arm"))
 
-    repeats = (
-        summary.groupby("n_files")["n_repeats"].max().sort_index()
-    )
+    repeats = summary.groupby("n_files")["n_repeats"].max().sort_index()
     n_note = ", ".join(f"{n:,}={r}" for n, r in repeats.items())
     note = lab(
         f"強制回答モード。反復回数 N（ファイル数=N）: {n_note}。"
@@ -137,7 +145,9 @@ def scaling_figure(summary: pd.DataFrame, out: Path, lab: Labels, auth: str) -> 
             "\nコストは定価換算の参考値（cli 認証）であり実請求額ではない。",
             "\nCost is a list-price estimate (cli auth), not an amount billed.",
         )
-    fig.suptitle(lab("コーパス規模と正答率・コスト・時間", "Corpus size versus accuracy, cost, time"))
+    fig.suptitle(
+        lab("コーパス規模と正答率・コスト・時間", "Corpus size versus accuracy, cost, time")
+    )
     fig.text(0.5, -0.05, note, ha="center", fontsize=9)
     path = out / "scaling.png"
     _save(fig, path)
@@ -159,10 +169,12 @@ def channel_figure(summary: pd.DataFrame, out: Path, lab: Labels) -> Path:
         ax.set_xscale("log")
         ax.set_ylim(-0.05, 1.05)
         ax.grid(alpha=0.3)
-    for ax in list(axes.flat)[len(channels):]:
+    for ax in list(axes.flat)[len(channels) :]:
         ax.axis("off")
     axes.flat[0].legend(fontsize=8)
-    fig.suptitle(lab("チャネル別 規模と正答率（強制回答）", "Accuracy by channel and corpus size (forced)"))
+    fig.suptitle(
+        lab("チャネル別 規模と正答率（強制回答）", "Accuracy by channel and corpus size (forced)")
+    )
     fig.supxlabel(lab("コーパスのファイル数（対数）", "files in corpus (log)"))
     path = out / "scaling_by_channel.png"
     _save(fig, path)
@@ -170,7 +182,11 @@ def channel_figure(summary: pd.DataFrame, out: Path, lab: Labels) -> Path:
 
 
 def write_markdown(
-    out: Path, overall: pd.DataFrame, by_channel: pd.DataFrame, notes: list[str], figures: list[Path]
+    out: Path,
+    overall: pd.DataFrame,
+    by_channel: pd.DataFrame,
+    notes: list[str],
+    figures: list[Path],
 ) -> Path:
     def table(df: pd.DataFrame) -> str:
         return df.to_markdown(index=False, floatfmt=".3f")

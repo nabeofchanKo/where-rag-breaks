@@ -108,7 +108,9 @@ def probe_corpus(corpus: Path) -> tuple[pd.DataFrame, dict]:
                 "c_n_candidates": len(candidates),
                 "c_companion_capped": len(companions) >= DEFAULT_N_FILES * 2,
                 "key": key,
-                "b_key_path_hits": sum(1 for p in all_paths if key_lower and key_lower in p.lower()),
+                "b_key_path_hits": sum(
+                    1 for p in all_paths if key_lower and key_lower in p.lower()
+                ),
                 "b_key_grep_hits": sum(1 for line in mirror_lines if key and key in line),
             }
         )
