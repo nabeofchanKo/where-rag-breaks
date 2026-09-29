@@ -164,20 +164,24 @@ def test_workspace_holds_only_the_candidates(corpus: Path) -> None:
     arm = HybridArm(k=5)
     arm.agentic.corpus = corpus.resolve()
     workspace = arm.build_workspace(candidates)
+    try:
+        present = sorted(
+            p.relative_to(workspace / "files").as_posix()
+            for p in (workspace / "files").rglob("*")
+            if p.is_file()
+        )
+        assert present == candidates
+        mirrors = [p.name for p in (workspace / "_index" / "mirror").rglob("*.md")]
+        assert mirrors == [f"{Path(candidates[0]).name}.md"]
 
-    present = sorted(
-        p.relative_to(workspace / "files").as_posix()
-        for p in (workspace / "files").rglob("*")
-        if p.is_file()
-    )
-    assert present == candidates
-    mirrors = [p.name for p in (workspace / "_index" / "mirror").rglob("*.md")]
-    assert mirrors == [f"{Path(candidates[0]).name}.md"]
+        catalog = (workspace / "_index" / "catalog.md").read_text(encoding="utf-8")
+        assert candidates[0] in catalog
+        assert not any(f"`{p}`" in catalog for p in outside), "カタログに候補外の行が残っている"
+        assert not workspace.is_relative_to(corpus.resolve().parent), (
+            "作業ディレクトリをコーパスの近くに置くと .. で本物に出られる"
+        )
+        assert corpus.name not in str(workspace), "パスにコーパス名を含めない（監査の前提）"
+    finally:
+        import shutil
 
-    catalog = (workspace / "_index" / "catalog.md").read_text(encoding="utf-8")
-    assert candidates[0] in catalog
-    assert not any(f"`{p}`" in catalog for p in outside), "カタログに候補外の行が残っている"
-    assert not workspace.is_relative_to(corpus.resolve().parent), (
-        "作業ディレクトリをコーパスの近くに置くと .. で本物に出られる"
-    )
-    assert corpus.name not in str(workspace), "パスにコーパス名を含めない（監査の前提）"
+        shutil.rmtree(workspace, ignore_errors=True)  # ~/.cache に残さない
