@@ -1,0 +1,57 @@
+{
+  "run_id": "p4-n1000-classical",
+  "started_at": "2026-09-29T18:12:20.711166+00:00",
+  "corpus": {
+    "channels": [
+      "chart_native",
+      "chart_only",
+      "cross_file",
+      "format",
+      "formula",
+      "hidden",
+      "layout",
+      "locked",
+      "scanned",
+      "text",
+      "version"
+    ],
+    "generator_version": 2,
+    "locale": "ja",
+    "n_files_requested": 1000,
+    "n_files_written": 1524,
+    "n_filler_files": 1376,
+    "n_questions": 66,
+    "questions_per_channel": 6,
+    "seed": 42
+  },
+  "model": "claude-sonnet-5",
+  "auth": "cli",
+  "arms": [
+    "classical"
+  ],
+  "k_values": [
+    8
+  ],
+  "modes": [
+    "forced"
+  ],
+  "repeats": 1,
+  "n_questions": 66,
+  "arm_config": {
+    "classical": {
+      "n_chunks": 3475,
+      "chunk_chars": 1200,
+      "overlap_chars": 200,
+      "embedding_model": "BAAI/bge-m3",
+      "retrieval": "bm25 + dense (RRF)",
+      "reranker": null
+    }
+  },
+  "k_values_per_arm": {
+    "classical": [
+      8
+    ]
+  },
+  "finished_at": "2026-09-29T18:30:33.469589+00:00",
+  "executed_calls": 66
+}

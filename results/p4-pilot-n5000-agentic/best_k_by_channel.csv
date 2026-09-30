@@ -1,0 +1,12 @@
+﻿arm,mode,channel,k,total,correct,incorrect,answered,accuracy,penalized,answer_rate,precision,decoy_rate
+agentic,forced,chart_native,,1.0,1.0,0.0,1.0,1.0,1.0,1.0,1.0,0.0
+agentic,forced,chart_only,,1.0,1.0,0.0,1.0,1.0,1.0,1.0,1.0,0.0
+agentic,forced,cross_file,,1.0,1.0,0.0,1.0,1.0,1.0,1.0,1.0,0.0
+agentic,forced,format,,1.0,1.0,0.0,1.0,1.0,1.0,1.0,1.0,0.0
+agentic,forced,formula,,1.0,0.0,1.0,1.0,0.0,-1.0,1.0,0.0,1.0
+agentic,forced,hidden,,1.0,1.0,0.0,1.0,1.0,1.0,1.0,1.0,0.0
+agentic,forced,layout,,1.0,1.0,0.0,1.0,1.0,1.0,1.0,1.0,0.0
+agentic,forced,locked,,1.0,1.0,0.0,1.0,1.0,1.0,1.0,1.0,0.0
+agentic,forced,scanned,,1.0,1.0,0.0,1.0,1.0,1.0,1.0,1.0,0.0
+agentic,forced,text,,1.0,1.0,0.0,1.0,1.0,1.0,1.0,1.0,
+agentic,forced,version,,1.0,0.0,1.0,1.0,0.0,-1.0,1.0,0.0,1.0
