@@ -92,7 +92,9 @@
 
 ### 作り方
 
-**課題設定（何を測るか、仮説と反証条件）、設計の判断、結果の採否は作者が行い、実装・測定の実行・文書の下書きには AI コーディング支援（Claude Code）を使った。**
+**きっかけ**: RAG を作るコンペティションに古典的RAGで臨んで結果が出ず、上位の解法はどれもエージェント型だった。コンペのデータで作り直すのではなく、「どこで、なぜ壊れるのか」を誰でも再現できる形で測ることにした。
+
+**役割分担**: 課題設定（何を明らかにしたいか）は作者が行った。設計（チャネルと罠、アームの仕様、検査の方法）は AI（Claude Code）との壁打ちで検討し、採否は作者が判断した。実装・測定の実行・文書の下書きには AI コーディング支援を使い、結果を結論として採るかどうかは作者が決めた。
 
 AI が書いたコードと数字をそのまま信じないために、次の規律を先に決めて守った。
 
@@ -235,7 +237,9 @@ Full numbers and figures are in [docs/findings.en.md](docs/findings.en.md); the 
 
 ### How this was built
 
-**The author set the problem (what to measure, the hypotheses and what would falsify them), made the design decisions and decided which results to accept. Implementation, running the measurements and drafting the documents were done with AI coding assistance (Claude Code).**
+**Where it started**: the author entered a RAG-building competition with classical RAG and got nowhere, while the top solutions were all agentic. Rather than redo the competition data, the question became where classical RAG breaks and why, measured in a form anyone can reproduce.
+
+**Who did what**: the author set the problem (what needed to be found out). The design (channels and traps, the arms, how to check things) was worked out in back-and-forth with an AI (Claude Code), and the author decided what to adopt. Implementation, running the measurements and drafting the documents used AI coding assistance, and the author decided which results to accept as conclusions.
 
 To avoid taking AI-written code and numbers on trust, these rules were fixed first and kept.
 
