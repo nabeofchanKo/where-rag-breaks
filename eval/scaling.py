@@ -160,12 +160,15 @@ def scaling_figure(
             ax.set_ylim(-0.05, 1.05)
             ax.legend(title=lab("アーム", "arm"))
 
-    repeats = summary.groupby("n_files")["n_repeats"].max().sort_index()
-    n_note = ", ".join(f"{n:,}={r}" for n, r in repeats.items())
+    # 大多数の点の N と、それと違う点だけを書く（規模ごとの最大値にすると、
+    # 1 アームだけ N=3 の規模が「その規模は全部 N=3」に見えてしまう）
+    usual = int(summary["n_repeats"].mode().iloc[0])
+    odd = summary[summary["n_repeats"] != usual].sort_values(["n_files", "arm"])
+    odd_ja = "".join(f"、{r.n_files:,} の {r.arm} は N={r.n_repeats}" for r in odd.itertuples())
+    odd_en = "".join(f"; {r.arm} at {r.n_files:,} has N={r.n_repeats}" for r in odd.itertuples())
     note = lab(
-        f"強制回答モード。反復回数 N（ファイル数=N）: {n_note}。"
-        "縦の帯は N>1 の点の反復間 min/max。",
-        f"Forced mode. Repeats N (files=N): {n_note}. Bars show min/max across repeats where N>1.",
+        f"強制回答モード。反復回数は N={usual}{odd_ja}。縦の帯は N>1 の点の反復間 min/max。",
+        f"Forced mode. N={usual}{odd_en}. Bars show min/max across repeats where N>1.",
     )
     if auth == "cli":
         note += lab(
