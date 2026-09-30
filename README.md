@@ -4,11 +4,11 @@
 >
 > A benchmark that measures **which information channels break classical RAG** (chunk + embed + top-k), using a synthetic corpus with automatically-derived ground truth.
 
-**ステータス: P3 + 棄権モードまで完了。11チャネル × 3アーム × 2モードの測定が揃っている。**
-**次にやることは [docs/next-steps.md](docs/next-steps.md) に書いてある（P4 スケーリング / P5 実データ検証）。**
+**ステータス: P4（スケーリング）まで完了。11チャネル × 3アーム × 2モードに加え、4 規模（151〜7,956 ファイル）の測定が揃っている。**
+**次にやることは [docs/next-steps.md](docs/next-steps.md) に書いてある（P5 実データ検証ほか）。**
 
-**Status: P3 plus both abstention modes are done — eleven channels, three arms, two modes.**
-**What comes next is written up in [docs/next-steps.md](docs/next-steps.md) (P4 scaling, P5 real-data validation).**
+**Status: done through P4 (scaling) — eleven channels, three arms, two modes, plus four corpus sizes from 151 to 7,956 files.**
+**What comes next is written up in [docs/next-steps.md](docs/next-steps.md) (P5 real-data validation and more).**
 
 ---
 
@@ -176,8 +176,46 @@ BM25 + BGE-m3 の RRF 融合、コーパス 311ファイル / 591チャンク。
 - **agentic と hybrid は正答率が完全に同じ**（0.919）。hybrid のほうが
   **17%安く、10%速い**。
 - ただし **H3（コーパスが大きくなるほど hybrid が有利、破綻点が存在する）は
-  これだけでは判定できない。** 311ファイルという規模では agentic もまだ余裕が
-  ある。判定には P4 のスケーリング測定（50 / 500 / 5,000）が要る。
+  これだけでは判定できない。** → 次節の P4 で判定した。
+- ⚠️ **この表の hybrid は、絞り込みに抜け道があった状態の数字である。** 候補外の
+  ミラーや原本にエージェントが届いていた（P4 で発覚。SPEC §14-9）。物理的に絞って
+  測り直した 311 ファイルの値は 0.939（N=1）で、結論は変わらない。
+
+### スケーリング（P4）— H3 の判定
+
+![scaling](results/p4-scaling/figures/scaling.png)
+
+同じ 66 問を、埋め草の量だけ変えた 4 規模のコーパスで測った（強制回答・N=1。
+311 ファイルの classical のみ P1 の N=3）。破線は、LLM を呼ばずに測った
+「hybrid の候補に正解ファイルがすべて入る割合」＝ hybrid の正答率の上限。
+
+| ファイル数 | classical | agentic | hybrid | hybrid の上限 | agentic $/問 | hybrid $/問 |
+|---|---|---|---|---|---|---|
+| 151 | 0.439 | 0.939 | 0.939 | 1.000 | 0.040 | 0.035 |
+| 311 | 0.449 | 0.924 | 0.939 | 0.970 | 0.045 | 0.042 |
+| 1,524 | 0.455 | 0.939 | **0.848** | 0.833 | 0.039 | **0.080** |
+| 7,956 | 0.455 | 0.909 | **0.818** | 0.848 | 0.044 | **0.068** |
+
+**H3 はこのコーパスでは支持されなかった。破綻点はあるが、壊れるのは hybrid の側だった。**
+
+- **agentic は 7,956 ファイルでも崩れない。** 設問は文書コード（`PRJ-1234` など）を
+  含み、エージェントは 66 問すべてで grep から探し始める。コードで引けるファイルは
+  規模によらず最大 11 件なので、規模が探索の難しさにならない
+- **hybrid は 1,524 ファイルから落ち、正答率は絞り込みの上限に張り付く。**
+  7,956 ファイルで落とした 12 問のうち 8 問は、候補に正解ファイルが揃っていなかった
+  問題だった。典型は `locked` で、パスワード規則の文書は質問と語彙が似ていないため
+  上位 20 件に入らない。**「関係はあるが似ていない文書」を落とす**のが類似度で絞る
+  方式の弱点である
+- **しかも hybrid の失敗は高くつく。** 両方が正解した問題ではコストも時間も同じで、
+  絞り込みによる節約は出ない。差は hybrid が候補に答えの無い問題で上限まで
+  探し続けることから来ている（1 問 $0.17・116 秒、agentic は $0.06・49 秒）
+- この結論は「設問が一意な識別子を含む」コーパスでのもの。内容の記述でしか文書を
+  特定できない設問では H3 が成り立つ余地が残る（未検証。SPEC §14-9）
+
+P4 では本番前後に、比較の公平性を崩す穴を 5 つ見つけて塞いだ（hybrid の絞り込みの
+抜け道、付随ファイルの打ち切り方、CLI の自動メモリの注入、エージェントの一時ファイルの
+残留、作業ディレクトリのハードリンク）。経緯と既存結果への影響の検査は SPEC §14-9、
+破棄した run は [`results/discarded-20260930-leaky-hybrid/`](results/discarded-20260930-leaky-hybrid/README.md)。
 
 ### 棄権を許すと何が変わるか（3アーム × 2モード）
 
@@ -573,8 +611,52 @@ Same corpus, same model, forced mode, N=3.
 - **Agentic and hybrid tie exactly on accuracy** (0.919), with hybrid **17% cheaper
   and 10% faster**.
 - **H3 (hybrid pulls ahead as the corpus grows; a break-even point exists) cannot be
-  decided from this.** At 311 files the agent is not yet strained. Deciding it needs
-  the P4 scaling runs (50 / 500 / 5,000).
+  decided from this.** See P4 below.
+- ⚠️ **The hybrid row above was measured with a leaky narrowing step.** The agent could
+  still reach mirrors and originals outside its candidates (found in P4, SPEC 14-9).
+  Re-measured with physical narrowing at 311 files it scores 0.939 (N=1); the
+  conclusion does not change.
+
+### Scaling (P4): deciding H3
+
+![scaling](results/p4-scaling/figures/scaling.png)
+
+The same 66 questions, on four corpora that differ only in how much filler they hold
+(forced mode, N=1; classical at 311 files is P1's N=3). The dashed line is measured
+without an LLM: the share of questions whose answer files all make it into hybrid's
+candidates, which caps hybrid's accuracy.
+
+| files | classical | agentic | hybrid | hybrid ceiling | agentic $/q | hybrid $/q |
+|---|---|---|---|---|---|---|
+| 151 | 0.439 | 0.939 | 0.939 | 1.000 | 0.040 | 0.035 |
+| 311 | 0.449 | 0.924 | 0.939 | 0.970 | 0.045 | 0.042 |
+| 1,524 | 0.455 | 0.939 | **0.848** | 0.833 | 0.039 | **0.080** |
+| 7,956 | 0.455 | 0.909 | **0.818** | 0.848 | 0.044 | **0.068** |
+
+**H3 is not supported on this corpus. There is a break point, but it is hybrid that breaks.**
+
+- **Agentic holds up at 7,956 files.** Every question carries a document code
+  (`PRJ-1234` and so on) and the agent opens all 66 questions with a grep. At most 11
+  files match a code at any size, so size does not make the search harder
+- **Hybrid drops from 1,524 files on, and its accuracy tracks its narrowing ceiling.**
+  Of the 12 questions it missed at 7,956 files, 8 never had all their answer files among
+  the candidates. The typical case is `locked`: the document holding the password rule
+  shares little vocabulary with the question, so it never makes the top 20. Dropping
+  **documents that are related but not similar** is the weak spot of narrowing by
+  similarity
+- **And hybrid's failures are expensive.** On questions both arms got right, cost and
+  time are the same, so narrowing saves nothing. The gap comes from hybrid searching to
+  its turn limit when the answer is not among its candidates ($0.17 and 116 s per
+  question, against $0.06 and 49 s for agentic)
+- This holds for a corpus whose questions carry a unique identifier. For questions that
+  can only locate a document by describing its content, H3 may still hold (untested,
+  SPEC 14-9)
+
+Around the P4 runs we found and closed five gaps that would have skewed the comparison
+(a leak in hybrid's narrowing, how companion files were capped, the CLI injecting the
+user's auto memory, agents' scratch files persisting in the corpus, and hard links in the
+workspace). SPEC 14-9 has the details and the check of earlier results; discarded runs
+are in [`results/discarded-20260930-leaky-hybrid/`](results/discarded-20260930-leaky-hybrid/README.md).
 
 ### What abstention changes (three arms, two modes)
 
