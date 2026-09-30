@@ -17,7 +17,7 @@
 | P2 Arm B（agentic） | ✅ 完了（[PR #4](https://github.com/nabeofchanKo/where-rag-breaks/pull/4)） |
 | P3 Arm C（hybrid）+ ヒートマップ | ✅ 完了（[PR #5](https://github.com/nabeofchanKo/where-rag-breaks/pull/5)） |
 | 棄権モードを3アームで揃える | ✅ 完了（[PR #6](https://github.com/nabeofchanKo/where-rag-breaks/pull/6)） |
-| P4 スケーリング（H3 の判定） | ✅ 完了（SPEC §14-9） |
+| P4 スケーリング（H3 の判定） | ✅ 完了（[PR #7](https://github.com/nabeofchanKo/where-rag-breaks/pull/7)、SPEC §14-9） |
 | **P5 実データ検証（任意）** | ⬜ **未着手** |
 
 H1・H2 は支持された。**H3 はこのコーパスでは支持されなかった**。破綻点はあるが、
