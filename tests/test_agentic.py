@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from pathlib import Path
 
 import pytest
@@ -88,13 +89,18 @@ def _tools(ctx: ToolContext) -> dict:
     return {t.name: t for t in instance.tools} if hasattr(instance, "tools") else {}
 
 
+# Windows 形式のパスは Windows でだけ「外に出るパス」になる。POSIX では
+# バックスラッシュもドライブ文字もファイル名の一部で、コーパスの中に解決される。
+_WINDOWS_ONLY = pytest.mark.skipif(os.name != "nt", reason="Windows 形式のパス")
+
+
 @pytest.mark.parametrize(
     "escape",
     [
         "../../../etc/passwd",
-        "..\\..\\secret.txt",
+        pytest.param("..\\..\\secret.txt", marks=_WINDOWS_ONLY),
         "files/../../outside.txt",
-        "C:/Windows/System32/drivers/etc/hosts",
+        pytest.param("C:/Windows/System32/drivers/etc/hosts", marks=_WINDOWS_ONLY),
     ],
 )
 def test_resolve_refuses_paths_that_leave_the_corpus(corpus: Path, escape: str) -> None:
