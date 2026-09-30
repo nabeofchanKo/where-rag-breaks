@@ -97,7 +97,27 @@ def summarise(frame: pd.DataFrame, keys: list[str]) -> pd.DataFrame:
     return out.drop(columns=["correct", "incorrect"])
 
 
-def scaling_figure(summary: pd.DataFrame, out: Path, lab: Labels, auth: str) -> Path:
+def _log_axis(ax: plt.Axes, ticks: list[int]) -> None:
+    """対数軸に、測った規模だけを目盛として出す（補助目盛のラベルは重なって読めない）。"""
+    ax.set_xscale("log")
+    ax.set_xticks(ticks)
+    ax.get_xaxis().set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v, _: f"{int(v):,}"))
+    ax.minorticks_off()
+
+
+def load_ceiling(probe_csv: Path) -> pd.DataFrame:
+    """規模プローブから、Arm C の候補に正解ファイルが**すべて**入った割合を読む。
+
+    Arm C は候補の外を見られないので、これが Arm C の正答率の上限になる
+    （候補が揃っていても読み違えることはあるので、上限であって予測ではない）。
+    """
+    probe = pd.read_csv(probe_csv)
+    return probe.groupby("n_files")["c_all_sources"].mean().rename("ceiling").reset_index()
+
+
+def scaling_figure(
+    summary: pd.DataFrame, out: Path, lab: Labels, auth: str, ceiling: pd.DataFrame | None = None
+) -> Path:
     """横軸=ファイル数（対数）。正答率・1問コスト・1問秒の 3 枚組。"""
     fig, axes = plt.subplots(1, 3, figsize=(16, 5))
     panels = (
@@ -120,12 +140,19 @@ def scaling_figure(summary: pd.DataFrame, out: Path, lab: Labels, auth: str) -> 
                     alpha=0.5,
                     linewidth=4,
                 )
-        ax.set_xscale("log")
-        ax.set_xticks(sorted(summary["n_files"].unique()))
-        ax.get_xaxis().set_major_formatter(
-            matplotlib.ticker.FuncFormatter(lambda v, _: f"{int(v):,}")
-        )
-        ax.minorticks_off()
+        if column == "accuracy" and ceiling is not None:
+            shown = ceiling[ceiling["n_files"].isin(summary["n_files"])].sort_values("n_files")
+            ax.plot(
+                shown["n_files"],
+                shown["ceiling"],
+                linestyle="--",
+                color=ARM_STYLE["hybrid"]["color"],
+                alpha=0.6,
+                label=lab(
+                    "hybrid の上限（候補に正解が揃う割合）", "hybrid ceiling (candidates complete)"
+                ),
+            )
+        _log_axis(ax, sorted(summary["n_files"].unique()))
         ax.set_xlabel(lab("コーパスのファイル数（対数）", "files in corpus (log)"))
         ax.set_ylabel(ylabel)
         ax.grid(alpha=0.3)
@@ -166,7 +193,7 @@ def channel_figure(summary: pd.DataFrame, out: Path, lab: Labels) -> Path:
             line = part[part["arm"] == arm].sort_values("n_files")
             ax.plot(line["n_files"], line["accuracy"], label=arm, **ARM_STYLE[arm])
         ax.set_title(channel, fontsize=10)
-        ax.set_xscale("log")
+        _log_axis(ax, sorted(summary["n_files"].unique()))
         ax.set_ylim(-0.05, 1.05)
         ax.grid(alpha=0.3)
     for ax in list(axes.flat)[len(channels) :]:
@@ -184,6 +211,7 @@ def channel_figure(summary: pd.DataFrame, out: Path, lab: Labels) -> Path:
 def write_markdown(
     out: Path,
     overall: pd.DataFrame,
+    ceiling: pd.DataFrame | None,
     by_channel: pd.DataFrame,
     notes: list[str],
     figures: list[Path],
@@ -194,8 +222,8 @@ def write_markdown(
     lines = [
         "# スケーリング（P4）",
         "",
-        "強制回答モードのみ。規模ごとの反復回数 N は `n_repeats` 列を参照"
-        "（311 ファイルは N=3、P4 で足した規模は N=1）。",
+        "強制回答モードのみ。各点の反復回数 N は `n_repeats` 列を参照"
+        "（P4 で測った点は N=1。SPEC §14-9）。",
         "",
         "## 図",
         "",
@@ -205,6 +233,19 @@ def write_markdown(
         "",
         table(overall),
         "",
+        *(
+            [
+                "## Arm C の上限（規模プローブ・LLM 未使用）",
+                "",
+                "候補に正解ファイルが**すべて**入った設問の割合。Arm C は候補の外を"
+                "見られないので、これが正答率の上限になる。",
+                "",
+                table(ceiling),
+                "",
+            ]
+            if ceiling is not None
+            else []
+        ),
         "## 規模 × アーム × チャネル",
         "",
         table(by_channel),
@@ -235,6 +276,12 @@ def main(argv: list[str] | None = None) -> int:
         metavar="N_FILES RUN",
         help="規模のファイル数と、その規模で測った run（複数）",
     )
+    p.add_argument(
+        "--probe",
+        type=Path,
+        default=None,
+        help="eval.scale_probe の scale_probe_raw.csv。Arm C の上限を破線で重ねる",
+    )
     p.add_argument("--out", type=Path, required=True)
     args = p.parse_args(argv)
 
@@ -245,16 +292,17 @@ def main(argv: list[str] | None = None) -> int:
     first_run = Path(args.point[0][1])
     auth = json.loads((first_run / "meta.json").read_text(encoding="utf-8")).get("auth", "")
 
+    ceiling = load_ceiling(args.probe) if args.probe else None
     overall = summarise(frame, ["n_files", "arm"])
     by_channel = summarise(frame, ["n_files", "arm", "channel"])
 
     lab = Labels(setup_fonts())
     figures_dir = args.out / "figures"
     figures = [
-        scaling_figure(overall, figures_dir, lab, auth),
+        scaling_figure(overall, figures_dir, lab, auth, ceiling),
         channel_figure(by_channel, figures_dir, lab),
     ]
-    report = write_markdown(args.out, overall, by_channel, notes, figures)
+    report = write_markdown(args.out, overall, ceiling, by_channel, notes, figures)
 
     pd.set_option("display.width", 160)
     pd.set_option("display.float_format", lambda v: f"{v:.3f}")
