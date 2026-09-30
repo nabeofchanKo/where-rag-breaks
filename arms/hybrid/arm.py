@@ -20,15 +20,27 @@
 ★ **絞ったらカタログもミラーも連動して絞る**
     候補を N 件にしてもカタログに全ファイルが並んでいたら、エージェントは
     そこから好きなものを選べてしまい「絞ってから渡す」設計が成立しない。
-    ``ToolContext.allowed`` を通じて ``list_files`` / ``read_file`` /
-    ``grep`` / ``run_python`` のすべてが同じ範囲に閉じる。
+
+★ **絞り込みは道具の検査ではなく、物理的な作業ディレクトリで行う**（SPEC §14-9）
+    P3 では ``ToolContext.allowed`` で道具ごとに弾いていたが、抜け道が 3 つあった。
+    ``read_file`` はミラー（``_index/mirror/``）を素通しし、``grep`` はカタログの
+    全行を返し、``run_python`` は任意のコードなので原本をどれでも開けた。
+    実測で、候補外のミラーや原本を開いた呼出が P3 にも P4 にもある。
+    そこで設問ごとに**候補ファイルだけを複製した作業ディレクトリ**
+    （原本・ミラー・絞ったカタログ）を作り、エージェントにはそこだけを渡す。
+    これなら run_python でも候補外には届かない。作業ディレクトリはリポジトリの
+    外に置く（``..`` で本物のコーパスや results/ に出られないように）。
 """
 
 from __future__ import annotations
 
+import hashlib
+import os
+import shutil
 from pathlib import Path
 
 from arms.agentic.arm import AgenticArm
+from arms.agentic.tools import ToolContext
 from arms.base import AnswerMode, ArmAnswer
 from arms.classical.arm import ClassicalArm
 
@@ -73,6 +85,8 @@ class HybridArm:
             "agent": self.agentic.index_stats,
             "n_candidate_files": self.k,
             "narrowing": "file-level (not chunk-level)",
+            # P3 は道具ごとの検査（抜け道あり）。P4 から物理的な作業ディレクトリ。
+            "narrowing_enforcement": "per-question workspace of copies",
         }
 
     def _candidate_files(self, question: str) -> list[str]:
@@ -129,21 +143,87 @@ class HybridArm:
             parent = PurePosixPath(rel).parent
             if any(parent == root or root in parent.parents for root in roots):
                 found.append(rel)
-                if len(found) >= self.k * 2:  # 候補が膨らみすぎないように頭打ち
-                    break
-        return found
+
+        # ★ 頭打ちの前に「選ばれたファイルに名前が近い順」に並べる（SPEC §14-9）。
+        #   名前順のまま切ると、規模が大きくなって同じディレクトリに埋め草の
+        #   zip や画像が数百件並んだとき、本命の付随ファイルが名前順で
+        #   切り落とされる（1,524 ファイルで locked の全問がこれで詰んだ）。
+        #   それは方式の限界ではなく打ち切り方の手抜きである。
+        #   使うのはファイル名どうしの共通接頭辞の長さだけで、正解は見ていない。
+        #   実際の文書管理でも、添付や図版は本体と同じ文書番号で名付けられる。
+        names = [PurePosixPath(path).name for path in selected]
+
+        def affinity(rel: str) -> int:
+            name = PurePosixPath(rel).name
+            return max((len(os.path.commonprefix([name, other])) for other in names), default=0)
+
+        found.sort(key=lambda rel: (-affinity(rel), rel))
+        return found[: self.k * 2]  # 候補が膨らみすぎないように頭打ち
+
+    def workspace_dir(self) -> Path:
+        """作業ディレクトリの場所。**リポジトリの外**の固定の場所に置く。
+
+        ★ コーパスの隣に置くと、run_python で ``..`` を 1 回たどるだけで本物の
+          コーパスも ``results/``（正解入り）も見えてしまう。名前もコーパス名を
+          含めず、パスのハッシュにする（監査で「本物のコーパスへの言及」を
+          検出するため、正当な呼出にコーパス名が現れないようにする）。
+
+        固定するのは、CLI のセッション記録が作業ディレクトリ名ごとにまとまるため
+        （``eval.hermetic_audit --workdir <ここ>`` で監査できる）。
+        """
+        corpus = self.agentic._require_corpus()  # noqa: SLF001
+        return workspace_for(corpus)
+
+    def build_workspace(self, candidates: list[str]) -> Path:
+        """候補ファイルだけを持つコーパスの複製を作る。"""
+        corpus = self.agentic._require_corpus()  # noqa: SLF001
+        workspace = self.workspace_dir()
+        if workspace.exists():
+            shutil.rmtree(workspace)
+
+        for rel in candidates:
+            _copy(corpus / "files" / rel, workspace / "files" / rel)
+            mirror = corpus / "_index" / "mirror" / f"{rel}.md"
+            if mirror.is_file():
+                _copy(mirror, workspace / "_index" / "mirror" / f"{rel}.md")
+
+        # カタログは候補の行だけ残す（伏せた件数は P3 と同じ書式で明示する）
+        catalog = (corpus / "_index" / "catalog.md").read_text(encoding="utf-8")
+        narrowed = ToolContext(corpus, allowed=set(candidates)).filter_catalog(catalog)
+        (workspace / "_index").mkdir(parents=True, exist_ok=True)
+        (workspace / "_index" / "catalog.md").write_text(narrowed, encoding="utf-8", newline="\n")
+        return workspace
 
     def answer(self, question: str, mode: AnswerMode) -> ArmAnswer:
         candidates = self._candidate_files(question)
 
-        # ★ 絞った範囲をエージェントに渡す。カタログもミラーも連動して絞られる。
-        self.agentic.allowed_files = set(candidates)
+        # ★ 絞った範囲だけを物理的に渡す。エージェントの作業ディレクトリごと差し替える。
+        corpus = self.agentic.corpus
+        self.agentic.corpus = self.build_workspace(candidates)
         try:
             out = self.agentic.answer(question, mode)
         finally:
-            self.agentic.allowed_files = None
+            self.agentic.corpus = corpus
 
         out.k = self.k
         # 診断用。候補に正解のファイルが入っていたかを後から確かめられる。
         out.retrieved = candidates
         return out
+
+
+def workspace_for(corpus: Path) -> Path:
+    """コーパスごとの Arm C 作業ディレクトリ（``~/.cache/wrb-ws/<ハッシュ>``）。"""
+    digest = hashlib.sha256(str(corpus.resolve()).encode("utf-8")).hexdigest()[:12]
+    return Path.home() / ".cache" / "wrb-ws" / digest
+
+
+def _copy(source: Path, target: Path) -> None:
+    """複製する。
+
+    ★ ハードリンクにしてはいけない。エージェントが作業ディレクトリのファイルを
+      上書きすると、同じ実体を共有する原本まで書き換わる（311 ファイルの測り直しで
+      実際に起きた。SPEC §14-9）。候補は 1 問あたり数十件の小さなファイルなので
+      複製の手間は無視できる。
+    """
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, target)

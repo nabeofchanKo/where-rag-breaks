@@ -1,0 +1,12 @@
+﻿arm,mode,channel,accuracy_mean,accuracy_min,accuracy_max,n_repeats
+agentic,forced,chart_native,1.0,1.0,1.0,1
+agentic,forced,chart_only,0.8333333333333334,0.8333333333333334,0.8333333333333334,1
+agentic,forced,cross_file,1.0,1.0,1.0,1
+agentic,forced,format,1.0,1.0,1.0,1
+agentic,forced,formula,0.8333333333333334,0.8333333333333334,0.8333333333333334,1
+agentic,forced,hidden,1.0,1.0,1.0,1
+agentic,forced,layout,1.0,1.0,1.0,1
+agentic,forced,locked,1.0,1.0,1.0,1
+agentic,forced,scanned,1.0,1.0,1.0,1
+agentic,forced,text,1.0,1.0,1.0,1
+agentic,forced,version,0.3333333333333333,0.3333333333333333,0.3333333333333333,1

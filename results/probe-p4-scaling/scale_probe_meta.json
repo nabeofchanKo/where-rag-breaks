@@ -1,0 +1,138 @@
+[
+  {
+    "corpus": "corpus-150",
+    "fingerprint": "a49be9ee3572ffd1",
+    "meta": {
+      "channels": [
+        "chart_native",
+        "chart_only",
+        "cross_file",
+        "format",
+        "formula",
+        "hidden",
+        "layout",
+        "locked",
+        "scanned",
+        "text",
+        "version"
+      ],
+      "generator_version": 2,
+      "locale": "ja",
+      "n_files_requested": 150,
+      "n_files_written": 151,
+      "n_filler_files": 3,
+      "n_questions": 66,
+      "questions_per_channel": 6,
+      "seed": 42
+    },
+    "n_chunks": 289,
+    "n_candidate_files": 20,
+    "catalog_chars": 11746,
+    "catalog_rows": 151,
+    "catalog_rows_visible": 151,
+    "max_chars": 20000,
+    "max_grep_hits": 60
+  },
+  {
+    "corpus": "corpus",
+    "fingerprint": "3d28964b9fdb6089",
+    "meta": {
+      "channels": [
+        "chart_native",
+        "chart_only",
+        "cross_file",
+        "format",
+        "formula",
+        "hidden",
+        "layout",
+        "locked",
+        "scanned",
+        "text",
+        "version"
+      ],
+      "generator_version": 2,
+      "locale": "ja",
+      "n_files_requested": 250,
+      "n_files_written": 311,
+      "n_filler_files": 163,
+      "n_questions": 66,
+      "questions_per_channel": 6,
+      "seed": 42
+    },
+    "n_chunks": 664,
+    "n_candidate_files": 20,
+    "catalog_chars": 23897,
+    "catalog_rows": 311,
+    "catalog_rows_visible": 261,
+    "max_chars": 20000,
+    "max_grep_hits": 60
+  },
+  {
+    "corpus": "corpus-1000",
+    "fingerprint": "748e0d483fadac0a",
+    "meta": {
+      "channels": [
+        "chart_native",
+        "chart_only",
+        "cross_file",
+        "format",
+        "formula",
+        "hidden",
+        "layout",
+        "locked",
+        "scanned",
+        "text",
+        "version"
+      ],
+      "generator_version": 2,
+      "locale": "ja",
+      "n_files_requested": 1000,
+      "n_files_written": 1524,
+      "n_filler_files": 1376,
+      "n_questions": 66,
+      "questions_per_channel": 6,
+      "seed": 42
+    },
+    "n_chunks": 3475,
+    "n_candidate_files": 20,
+    "catalog_chars": 116103,
+    "catalog_rows": 1524,
+    "catalog_rows_visible": 265,
+    "max_chars": 20000,
+    "max_grep_hits": 60
+  },
+  {
+    "corpus": "corpus-5000",
+    "fingerprint": "299f0c22d0bb93f3",
+    "meta": {
+      "channels": [
+        "chart_native",
+        "chart_only",
+        "cross_file",
+        "format",
+        "formula",
+        "hidden",
+        "layout",
+        "locked",
+        "scanned",
+        "text",
+        "version"
+      ],
+      "generator_version": 2,
+      "locale": "ja",
+      "n_files_requested": 5000,
+      "n_files_written": 7956,
+      "n_filler_files": 7808,
+      "n_questions": 66,
+      "questions_per_channel": 6,
+      "seed": 42
+    },
+    "n_chunks": 18930,
+    "n_candidate_files": 20,
+    "catalog_chars": 604918,
+    "catalog_rows": 7956,
+    "catalog_rows_visible": 263,
+    "max_chars": 20000,
+    "max_grep_hits": 60
+  }
+]

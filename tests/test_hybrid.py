@@ -113,8 +113,80 @@ def test_companions_bring_in_unindexable_neighbours(corpus: Path) -> None:
     assert all(c not in indexable for c in companions), "索引可能なファイルが混ざっている"
 
 
+def test_companion_cap_keeps_the_matching_file(corpus: Path) -> None:
+    """★ 付随ファイルが上限を超えても、本体と同じ名前の図版は切り落とされないこと。
+
+    名前順で切ると、規模が大きくなって同じディレクトリに埋め草の図版が
+    並んだとき本命が落ちる（1,524 ファイルで locked の全問が詰んだ。SPEC §14-9）。
+    ここでは本命の図版が**名前順で最後**になる資料を選び、上限を 2 件に絞る。
+    """
+    from arms.classical.extract import extract_corpus
+    from arms.hybrid.arm import HybridArm
+
+    indexable = {b.path for b in extract_corpus(corpus / "files")}
+    images = sorted(p for p in _all_files(corpus) if p.endswith(".png") and p not in indexable)
+    assert len(images) > 2, "図版が上限以下しか無い（このテストの前提が崩れている）"
+
+    last = images[-1]
+    code = last.rsplit("/", 1)[-1].split("_")[0]
+    deck = next(p for p in _all_files(corpus) if p.endswith(".pptx") and f"/{code}_" in p)
+
+    arm = HybridArm(k=1)  # 上限は 2k = 2 件
+    arm.classical._index = _FakeIndex(indexable)  # noqa: SLF001
+    arm.agentic.corpus = corpus.resolve()
+
+    companions = arm._companions([deck])  # noqa: SLF001
+    assert len(companions) == 2
+    assert last in companions, "名前順で最後の本命の図版が上限で切り落とされた"
+
+
 class _FakeIndex:
     """``_companions`` が見るのは ``chunks`` の path だけ。"""
 
     def __init__(self, paths: set[str]) -> None:
         self.chunks = [type("C", (), {"path": p})() for p in sorted(paths)]
+
+
+# ── 物理的な絞り込み（SPEC §14-9）────────────────────────────────────
+def test_workspace_holds_only_the_candidates(corpus: Path) -> None:
+    """★ 候補外のファイルは作業ディレクトリに**存在しない**こと。
+
+    P3 では道具ごとの検査で絞っていたが、read_file はミラーを素通しし、
+    run_python は原本をどれでも開けた。物理的に置かなければ、どの道具でも届かない。
+    """
+    from arms.hybrid.arm import HybridArm
+
+    everything = _all_files(corpus)
+    candidates = [p for p in everything if p.endswith(".pptx")][:1]
+    outside = [p for p in everything if p not in candidates]
+    assert outside, "候補外のファイルが無い（このテストの前提が崩れている）"
+
+    arm = HybridArm(k=5)
+    arm.agentic.corpus = corpus.resolve()
+    workspace = arm.build_workspace(candidates)
+    try:
+        present = sorted(
+            p.relative_to(workspace / "files").as_posix()
+            for p in (workspace / "files").rglob("*")
+            if p.is_file()
+        )
+        assert present == candidates
+        mirrors = [p.name for p in (workspace / "_index" / "mirror").rglob("*.md")]
+        assert mirrors == [f"{Path(candidates[0]).name}.md"]
+
+        catalog = (workspace / "_index" / "catalog.md").read_text(encoding="utf-8")
+        assert candidates[0] in catalog
+        assert not any(f"`{p}`" in catalog for p in outside), "カタログに候補外の行が残っている"
+        assert not workspace.is_relative_to(corpus.resolve().parent), (
+            "作業ディレクトリをコーパスの近くに置くと .. で本物に出られる"
+        )
+        assert corpus.name not in str(workspace), "パスにコーパス名を含めない（監査の前提）"
+
+        # 作業ディレクトリ側を書き換えても原本は変わらない（ハードリンクにしない）
+        original = (corpus / "files" / candidates[0]).read_bytes()
+        (workspace / "files" / candidates[0]).write_bytes(b"overwritten by the agent")
+        assert (corpus / "files" / candidates[0]).read_bytes() == original
+    finally:
+        import shutil
+
+        shutil.rmtree(workspace, ignore_errors=True)  # ~/.cache に残さない

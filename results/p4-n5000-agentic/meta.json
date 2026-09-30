@@ -1,0 +1,65 @@
+{
+  "run_id": "p4-n5000-agentic",
+  "started_at": "2026-09-29T20:25:27.025652+00:00",
+  "corpus": {
+    "channels": [
+      "chart_native",
+      "chart_only",
+      "cross_file",
+      "format",
+      "formula",
+      "hidden",
+      "layout",
+      "locked",
+      "scanned",
+      "text",
+      "version"
+    ],
+    "generator_version": 2,
+    "locale": "ja",
+    "n_files_requested": 5000,
+    "n_files_written": 7956,
+    "n_filler_files": 7808,
+    "n_questions": 66,
+    "questions_per_channel": 6,
+    "seed": 42
+  },
+  "model": "claude-sonnet-5",
+  "auth": "cli",
+  "arms": [
+    "agentic"
+  ],
+  "k_values": [
+    4,
+    8,
+    16
+  ],
+  "modes": [
+    "forced"
+  ],
+  "repeats": 1,
+  "n_questions": 66,
+  "arm_config": {
+    "agentic": {
+      "index": "catalog + markdown mirror",
+      "n_files": 7956,
+      "n_mirrored": 6325,
+      "tools": [
+        "mcp__wrb__list_files",
+        "mcp__wrb__read_file",
+        "mcp__wrb__grep",
+        "mcp__wrb__run_python",
+        "mcp__wrb__view_image"
+      ],
+      "max_turns": 40,
+      "mirror_extractor": "arms.classical.extract"
+    }
+  },
+  "k_values_per_arm": {
+    "agentic": [
+      null
+    ]
+  },
+  "finished_at": "2026-09-29T21:11:22.727825+00:00",
+  "executed_calls": 66
+}

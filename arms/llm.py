@@ -178,6 +178,13 @@ async def _run(
         setting_sources=None,  # ユーザーの CLAUDE.md や settings.json を読まない
         skills=None,  # スキルを読み込まない
         plugins=[],  # プラグインを読み込まない
+        # ★ 自動メモリを切る（SPEC §14-9）。setting_sources=None でも、CLI は
+        #   作業ディレクトリの git リポジトリに紐づくユーザーの自動メモリ
+        #   （MEMORY.md の索引）を全呼出の文脈に注入していた。実測で Arm B / C が
+        #   索引からファイル名を知り、メモリ本体を read_file で読もうとして
+        #   ガードに弾かれている（311 ファイルの記録で 6 セッション）。索引に正解は
+        #   無いが、実行者の手元の状態で文脈が変わる経路なので塞ぐ。
+        env={"CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1"},
     )
 
     text_parts: list[str] = []

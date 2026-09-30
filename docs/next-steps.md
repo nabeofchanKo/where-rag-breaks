@@ -2,9 +2,9 @@
 
 > **新しいセッションへ**: このファイルと [`SPEC.md`](../SPEC.md)（特に §14 改訂履歴）、
 > [`README.md`](../README.md) を読めば続きから始められる。
-> 「P4 進めて」「P5 進めて」と言われたら、下の該当節をそのまま実行すればよい。
+> 「P5 進めて」と言われたら下の P5 節を、ほかの残作業なら該当節をそのまま実行すればよい。
 >
-> 最終更新: 2026-09-29
+> 最終更新: 2026-09-30
 
 ---
 
@@ -17,19 +17,38 @@
 | P2 Arm B（agentic） | ✅ 完了（[PR #4](https://github.com/nabeofchanKo/where-rag-breaks/pull/4)） |
 | P3 Arm C（hybrid）+ ヒートマップ | ✅ 完了（[PR #5](https://github.com/nabeofchanKo/where-rag-breaks/pull/5)） |
 | 棄権モードを3アームで揃える | ✅ 完了（[PR #6](https://github.com/nabeofchanKo/where-rag-breaks/pull/6)） |
-| **P4 スケーリング（H3 の判定）** | ⬜ **未着手** |
+| P4 スケーリング（H3 の判定） | ✅ 完了（SPEC §14-9） |
 | **P5 実データ検証（任意）** | ⬜ **未着手** |
 
-H1・H2 は支持された。**H3 は未判定**（311ファイルでは agentic にまだ余裕があり、
-hybrid の優位はコスト 17%・時間 10% にとどまる）。
+H1・H2 は支持された。**H3 はこのコーパスでは支持されなかった**。破綻点はあるが、
+壊れるのは agentic ではなく hybrid の絞り込み（1,524 ファイルから候補に正解が揃わない
+設問が増え、正答率がその上限に張り付く）。設問が一意な識別子を含むので、agentic は
+grep 一発で届き、規模が難しさにならない。詳細は SPEC §14-9。
 
 ### 手元の状態
 
-- `main` はクリーン。すべての結果は `results/` にコミット済み
-- `corpus/` は `.gitignore`。いま置いてあるのは
-  `--seed 42 --files 250 --questions 6`（指紋 `3d28964b9fdb6089`、311ファイル）
-- 埋め込みは `.cache/embeddings/` にキャッシュ済み（コーパスを作り直すと再計算）
+- 結果はすべて `results/` にコミット済み
+- コーパスは `.gitignore`（`corpus/` `corpus-*/`）。置いてあるもの:
+
+  | 場所 | コマンド | ファイル数 | 指紋 |
+  |---|---|---|---|
+  | `corpus-150/` | `--seed 42 --files 150 --questions 6` | 151 | `a49be9ee3572ffd1` |
+  | `corpus/` | `--seed 42 --files 250 --questions 6` | 311 | `3d28964b9fdb6089` |
+  | `corpus-1000/` | `--seed 42 --files 1000 --questions 6` | 1,524 | `748e0d483fadac0a` |
+  | `corpus-5000/` | `--seed 42 --files 5000 --questions 6` | 7,956 | `299f0c22d0bb93f3` |
+
+  `corpus/` は P4 で**作り直した**（P2/P3 のエージェントが `files/` に一時ファイルを
+  残していた）。指紋は `python -m eval.scale_probe` の出力でも確かめられる
+- 埋め込みは `.cache/embeddings/` にキャッシュ済み。**7,956 ファイルの初回計算は
+  CPU で約 2 時間強**かかった（別の計算と並行した実測）
+- Arm C の作業ディレクトリは `~/.cache/wrb-ws/<ハッシュ>`（設問ごとに作り直す）
 - 認証は `WRB_AUTH=cli`（既定）。契約プランの枠を使い、API 従量課金は発生しない
+
+### ★ `uv run` には `--no-sync` を付ける
+
+この機では `uv run` が依存の同期を試みて、AVG の TLS 傍受で PyPI への接続に失敗する
+（`invalid peer certificate: UnknownIssuer`）。環境はできているので
+**`uv run --no-sync python -m ...`** で回すこと。
 
 ### 既存の結果 run
 
@@ -38,105 +57,63 @@ hybrid の優位はコスト 17%・時間 10% にとどまる）。
 | `p1-seed42-ja-k8` | Arm A × 11チャネル × 2モード × N=3（`version` は**旧設計**なので使わない） |
 | `p1-version-v2-k8` | Arm A × `version`（新設計）× 2モード × N=3 |
 | `p2-agentic-forced` / `p2-agentic-abstain` | Arm B × 11チャネル × N=3 |
-| `p3-hybrid-forced` / `p3-hybrid-abstain` | Arm C × 11チャネル × N=3 |
-| `compare-3arms` | 上をすべて重ねた図とレポート |
+| `p3-hybrid-forced` / `p3-hybrid-abstain` | Arm C × 11チャネル × N=3（⚠️ 絞り込みに抜け道があった） |
+| `compare-3arms` | P1〜P3 を重ねた図とレポート |
+| `p4-n{150,311,1000,5000}-{classical,agentic,hybrid}` | P4 本番（強制回答・N=1。311 の classical は P1 を流用） |
+| `p4-scaling` | P4 の図（`scaling.png`）とレポート |
+| `probe-p4-scaling` | 規模プローブ（LLM 未使用） |
+| `p4-pilot-n5000-agentic` | 所要時間の見積り専用（結論に使わない） |
 | `probe-p1-seed42-ja` | 検索プローブ（LLM 未使用） |
-| `discarded-20260925-nonhermetic` | 破棄した run（理由つき） |
+| `discarded-20260925-nonhermetic` / `discarded-20260930-leaky-hybrid` | 破棄した run（理由つき） |
 
-比較図の再生成コマンド:
+P4 の図の再生成コマンド:
 
 ```bash
-uv run python -m eval.report \
-  --run results/p1-seed42-ja-k8 \
-  --also results/p1-version-v2-k8 \
-  --also results/p2-agentic-forced --also results/p2-agentic-abstain \
-  --also results/p3-hybrid-forced  --also results/p3-hybrid-abstain \
-  --out results/compare-3arms
+uv run --no-sync python -m eval.scaling \
+  --point 151  results/p4-n150-classical results/p4-n150-agentic results/p4-n150-hybrid \
+  --point 311  results/p1-seed42-ja-k8 results/p1-version-v2-k8 \
+               results/p4-n311-agentic results/p4-n311-hybrid \
+  --point 1524 results/p4-n1000-classical results/p4-n1000-agentic results/p4-n1000-hybrid \
+  --point 7956 results/p4-n5000-classical results/p4-n5000-agentic results/p4-n5000-hybrid \
+  --probe results/probe-p4-scaling/scale_probe_raw.csv \
+  --out results/p4-scaling
 ```
 
-`--also` は**後の run が同じ (アーム, チャネル, モード) を上書きする**。
-上書きは必ず標準出力に出るので、意図しない上書きが起きたら気づける。
+道具を使う run の後の監査:
+
+```bash
+uv run --no-sync python -m eval.hermetic_audit --corpus corpus-1000/ --since 2026-09-30T00:00:00Z
+uv run --no-sync python -m eval.hermetic_audit --corpus corpus-1000/ --hybrid
+```
+
+「正解ファイルへの言及」と「別設問のコード」が 0 でなければ、中身を確かめるまで
+その run を結論に使わない（自分で書いた一時ファイルの誤検知もありうる）。
 
 ---
 
-## P4 — スケーリング（H3 の判定）
+## 残作業（どれも任意）
 
-**目的**: SPEC §2 の H3「hybrid はコーパスが大きくなるほど agentic 単体より
-有利になる。破綻点が存在する」を判定し、`scaling.png` を出す。
+### A. P3 の Arm C を物理的な絞り込みで測り直す
 
-### ★ 最初に決めること（SPEC §12-6 が未決のまま）
-
-**5,000ファイル規模で Arm B / C を素直に回すと破産する。** 実測値から見積もると:
-
-| 規模 | Arm A | Arm B | Arm C |
-|---|---|---|---|
-| 1問あたり | 約23秒 / $0.014 | 約33〜53秒 / $0.05 | 約29〜36秒 / $0.04 |
-
-5,000ファイルでは Arm B の探索がさらに伸びるので、**1問あたり数分**を見込むべき。
-66問 × 3アーム × N=3 を素直に回すと十数時間。以下を人間に決めてもらうこと。
-
-1. **規模**: SPEC は 50 / 500 / 5,000。5,000 を 2,000 に落とすかどうか
-2. **問題数**: 大規模では 1チャネル 2問（計22問）に絞ってよい（SPEC §8 P4 が明記）
-3. **反復**: 大規模では N=1 にするか（SPEC §5-4 は N=3 必須だが、
-   P4 は「破綻点の特定」が目的なので N=1 でも傾向は見える。**N を下げたら
-   レポートに明記すること**）
-4. **予算上限**: 時間と金額の上限。超えたら止める
-
-推奨の初期案（約3〜4時間）:
-
-```
-50ファイル   : 66問 × 3アーム × N=1 = 198呼出
-500ファイル  : 66問 × 3アーム × N=1 = 198呼出
-2,000ファイル: 22問 × 3アーム × N=1 =  66呼出
-```
-
-### 手順
+P3 の `p3-hybrid-forced` / `p3-hybrid-abstain` は、絞り込みに抜け道があった状態の数字
+（SPEC §14-9 の 4）。311 ファイルの強制回答 N=1 では 0.939 で結論は変わらなかったが、
+`compare-3arms` の図と README の P3 表はまだ古い数字のまま。2 モード × N=3 で測り直して
+差し替えるなら:
 
 ```bash
-# 1. 規模ごとにコーパスを作る（--files で総ファイル数を指定）
-uv run python -m gen --seed 42 --files 50   --questions 6 --out corpus-50/
-uv run python -m gen --seed 42 --files 500  --questions 6 --out corpus-500/
-uv run python -m gen --seed 42 --files 2000 --questions 2 --out corpus-2000/
-
-# 2. 漏洩検査（規模ごとに必ず）
-uv run python -m eval.leak_check --corpus corpus-50/
-
-# 3. Arm B/C はカタログとミラーが要る（run が無ければ自動で作るが、
-#    大規模では先に作っておくと時間が読める）
-uv run python -m ingest.build --corpus corpus-50/
-
-# 4. アームを回す（例）
-uv run python -m eval.run --corpus corpus-50/ --arms classical --k 8 \
-    --modes forced --repeats 1 --run-id p4-n50-classical
-uv run python -m eval.run --corpus corpus-50/ --arms agentic \
-    --modes forced --repeats 1 --run-id p4-n50-agentic
-uv run python -m eval.run --corpus corpus-50/ --arms hybrid --k 20 \
-    --modes forced --repeats 1 --run-id p4-n50-hybrid
-
-# 5. 採点
-uv run python -m eval.score --run results/p4-n50-classical --corpus corpus-50/
+uv run --no-sync python -m eval.run --corpus corpus/ --arms hybrid --k 20 \
+    --modes forced,abstain_ok --repeats 3 --run-id p3-hybrid-v2
 ```
 
-### ★ 注意点（踏むと痛い）
+（396 呼出、約 4 時間）。差し替えたら `compare-3arms` を再生成し、README の P3 表を更新する。
 
-- **`--corpus` を取り違えないこと。** 採点は `--corpus` の `questions.jsonl` を
-  見るので、別規模のコーパスを渡すと qid が合わず壊れる
-- **埋め込みのキャッシュは規模ごとに別。** 500 / 2,000 ファイルでは初回の
-  埋め込み計算に数十分かかる。先に検索プローブを流すとキャッシュが温まる
-- **`--k` を省略しない。** Arm A / C では既定が `4,8,16` で3倍走る。
-  Arm B は `sweeps_k=False` なので自動的に畳まれる
-- **長時間 run は必ず監視に異常終了の検出を入れる。** 一度、1呼出目で
-  クラッシュしたまま気づかず放置しかけた
-- **実行が落ちても `raw.jsonl` から再開できる。** 同じ `--run-id` で再実行すれば
-  記録済みの行はスキップされる。ただし**コーパスが同一であることを
-  指紋で確認してから**再開すること
+### B. 識別子の無い設問で H3 を測る
 
-### `scaling.png` はまだ無い
-
-`eval/report.py` には `channel_heatmap` / `cost_accuracy` / `abstention_map` しか
-無い。P4 では **`scaling.png`（横軸=ファイル数、縦軸=正答率、アームごとの線）**を
-足す必要がある。複数 run をまとめる仕組み（`--also`）は既にあるので、
-`meta.json` の `corpus.n_files_written` を横軸に使えばよい。
+P4 の結論は「設問が一意な文書コードを含む」コーパスでのもの。内容の記述でしか文書を
+特定できない設問では、agentic の探索が規模とともに重くなり、H3 が成り立つ余地がある。
+**設問を変える＝仕様の変更なので、LLM を回す前に SPEC を改訂して記録すること。**
+規模プローブ（`eval/scale_probe.py`）の `b_key_path_hits` が規模とともに増える設計に
+なっているかを、LLM を呼ぶ前に確かめる。
 
 ---
 
@@ -178,7 +155,9 @@ SPEC §9 のとおり **上場企業のIR資料** を使う。XBRL があるの�
 3. **採点基準を結果を見てから変えない。** 変えたら
    [`docs/scoring-changes.md`](scoring-changes.md) に必ず記録する
 4. **アームの実行環境は密閉する。** `tool_results` の検査が双方向に入っている
-   （道具なしのアームが使った / 道具ありのアームが使っていない、の両方を検出）
+   （道具なしのアームが使った / 道具ありのアームが使っていない、の両方を検出）。
+   道具を使う run の後は **`eval/hermetic_audit.py` でセッション記録を監査**し、
+   **コーパスの指紋が生成時と一致するか**も確かめる（P4 で 5 つの穴が見つかった）
 5. **N=3 とばらつき併記。** 1発取りの数字を結論にしない。
    N を下げるならレポートに明記する
 6. **LLM を呼ぶ前に、LLM 不要の検査で確かめる。** 検索プローブと
@@ -187,7 +166,7 @@ SPEC §9 のとおり **上場企業のIR資料** を使う。XBRL があるの�
 
 ## 環境の罠
 
-[`docs/environment-notes.md`](environment-notes.md) に7件記録してある。
+[`docs/environment-notes.md`](environment-notes.md) に9件記録してある。
 特にこの Windows 機では **AVG が `SSLKEYLOGFILE` を設定しており、
 対策しないと Python の HTTPS がトレースバック無しで即死する**。
 `arms/llm.py` の `bootstrap()` が全入口の先頭で対処しているので、

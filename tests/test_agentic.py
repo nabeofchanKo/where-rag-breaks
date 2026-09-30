@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from pathlib import Path
 
 import pytest
@@ -88,13 +89,18 @@ def _tools(ctx: ToolContext) -> dict:
     return {t.name: t for t in instance.tools} if hasattr(instance, "tools") else {}
 
 
+# Windows 形式のパスは Windows でだけ「外に出るパス」になる。POSIX では
+# バックスラッシュもドライブ文字もファイル名の一部で、コーパスの中に解決される。
+_WINDOWS_ONLY = pytest.mark.skipif(os.name != "nt", reason="Windows 形式のパス")
+
+
 @pytest.mark.parametrize(
     "escape",
     [
         "../../../etc/passwd",
-        "..\\..\\secret.txt",
+        pytest.param("..\\..\\secret.txt", marks=_WINDOWS_ONLY),
         "files/../../outside.txt",
-        "C:/Windows/System32/drivers/etc/hosts",
+        pytest.param("C:/Windows/System32/drivers/etc/hosts", marks=_WINDOWS_ONLY),
     ],
 )
 def test_resolve_refuses_paths_that_leave_the_corpus(corpus: Path, escape: str) -> None:
@@ -151,3 +157,30 @@ def test_note_open_records_both_originals_and_mirror(corpus: Path) -> None:
     ctx.note_open(first)
     assert "_index/catalog.md" in ctx.files_opened
     assert any(p.startswith("files/") for p in ctx.files_opened)
+
+
+# ── 設問間の密閉（SPEC §14-9）──────────────────────────────────────
+def test_restore_removes_scratch_and_reports_edits(tmp_path: Path) -> None:
+    """★ エージェントが書いた一時ファイルは次の設問までに消えること。
+
+    run_python の作業ディレクトリはコーパス直下なので、消さないと zip の
+    展開結果などが後の設問から見える。原本の書き換えは戻せないので報告する。
+    """
+    from arms.agentic.arm import restore, snapshot
+
+    (tmp_path / "files").mkdir()
+    original = tmp_path / "files" / "a.txt"
+    original.write_text("original", encoding="utf-8")
+    before = snapshot(tmp_path)
+
+    (tmp_path / "out_settlement.txt").write_text("scratch", encoding="utf-8")
+    (tmp_path / "out").mkdir()
+    (tmp_path / "out" / "page_0.png").write_bytes(b"png")
+    original.write_text("edited by the agent", encoding="utf-8")
+
+    removed, altered = restore(tmp_path, before)
+
+    assert sorted(removed) == ["out/page_0.png", "out_settlement.txt"]
+    assert not (tmp_path / "out").exists()
+    assert altered == ["files/a.txt"]
+    assert original.exists(), "原本を消してはいけない"
