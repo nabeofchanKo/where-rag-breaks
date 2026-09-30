@@ -50,11 +50,9 @@
 |---|---|---|---|---|
 | **A `classical`** | 0.449 | **−0.076** | $0.014 | 22.2 |
 | **B `agentic`** | **0.919** | +0.843 | $0.047 | 32.5 |
-| **C `hybrid`** ※ | **0.919** | +0.838 | $0.039 | 29.1 |
+| **C `hybrid`** | **0.934** | +0.869 | $0.036 | 36.3 |
 
 311 ファイル・強制回答・N=3。Arm A はコントロール段が 11 チャネルすべてで 1.00、到達不能の段は 9 チャネルで 0.00 だった。塗り色・グラフ画像・空間配置・暗号化・ファイル横断集計は互いに別の機構なのに、8 チャネルがぴったり同じ正答率（0.333）に並ぶ。コントロール段が満点なので、原因は抽出器でも検索でもない。
-
-※ P3 の hybrid は絞り込みに抜け道があった状態の数字（[作り方](#作り方)を参照）。
 
 **2. エージェントは「届かない」を解決するが、「古い値」にはより確実に騙される**
 
@@ -109,7 +107,7 @@ AI が書いたコードと数字をそのまま信じないために、次の�
 - **設問数が少ない。** 1 チャネル 6 問（1 段あたり 2 問）。チャネル単位の傾向は安定しているが、段ごとの細かい順序までは主張できない。
 - **モデルは 1 種類**（`claude-sonnet-5`）。
 - **規模の測定は N=1**、設問は一意な文書コードを含む。識別子の無い設問では、規模の結論が変わる余地がある。
-- 311 ファイルの測定（P1〜P3）は、自動メモリの索引が全アームの文脈に入った状態で行った。全アームに等しく入り、正解は含まないので、比較の結論は変わらないと判断している（SPEC §14-9）。
+- 311 ファイルの classical と agentic（P1・P2）は、CLI の自動メモリの索引が文脈に入った状態で測った（hybrid は入らない状態で測り直した）。索引は正解を含まないので、比較の結論は変わらないと判断している（SPEC §14-9）。
 
 ### 再現方法
 
@@ -195,11 +193,9 @@ Each channel has three tiers.
 |---|---|---|---|---|
 | **A `classical`** | 0.449 | **−0.076** | $0.014 | 22.2 |
 | **B `agentic`** | **0.919** | +0.843 | $0.047 | 32.5 |
-| **C `hybrid`** † | **0.919** | +0.838 | $0.039 | 29.1 |
+| **C `hybrid`** | **0.934** | +0.869 | $0.036 | 36.3 |
 
 311 files, forced mode, N=3. Arm A scored 1.00 on the control tier in all eleven channels and 0.00 on the unreachable tier in nine. Fill colors, chart images, spatial layout, encryption and cross-file sums are unrelated mechanisms, yet eight channels land on exactly the same accuracy (0.333). Since the control tier is perfect, neither the extractor nor retrieval is the cause.
-
-† P3's hybrid row was measured with a leak in its narrowing step (see [How this was built](#how-this-was-built)).
 
 **2. The agent fixes "unreachable" and is fooled more reliably by "stale"**
 
@@ -254,7 +250,7 @@ To avoid taking AI-written code and numbers on trust, these rules were fixed fir
 - **Few questions.** Six per channel, two per tier. Channel-level patterns are stable; the ordering of individual tiers is not something these numbers can claim.
 - **One model** (`claude-sonnet-5`).
 - **The scaling runs are N=1**, and every question carries a unique document code. Without such identifiers the scaling conclusion could differ.
-- The 311-file runs (P1 to P3) were made with the runner's auto-memory index present in every arm's context. It was the same for all arms and holds no answers, so we judge the comparison unaffected (SPEC 14-9).
+- The 311-file classical and agentic runs (P1, P2) were made with the CLI's auto-memory index in context (hybrid was re-measured without it). The index holds no answers, so we judge the comparison unaffected (SPEC 14-9).
 
 ### Reproducing it
 

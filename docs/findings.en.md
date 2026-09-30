@@ -144,18 +144,18 @@ Same corpus, same model, forced mode, N=3.
 |---|---|---|---|---|---|
 | **A `classical`** | 0.449 | **−0.076** | $0.014 | 22.2 | 0 |
 | **B `agentic`** | **0.919** | +0.843 | $0.047 | 32.5 | 6.6 |
-| **C `hybrid`** | **0.919** | +0.838 | **$0.039** | **29.1** | 6.3 |
+| **C `hybrid`** | **0.934** | +0.869 | **$0.036** | 36.3 | 5.7 |
 
 - **Classical RAG's penalized score is negative** (−0.076): more wrong answers than
   right ones, the same sign as the −11 measurement SPEC section 1 starts from.
-- **Agentic and hybrid tie exactly on accuracy** (0.919), with hybrid **17% cheaper
-  and 10% faster**.
+- **Agentic and hybrid are nearly tied on accuracy** (0.919 against 0.934; one question
+  is 0.015, so the gap is one question), with hybrid **23% cheaper** and 12% slower.
 - **H3 (hybrid pulls ahead as the corpus grows; a break-even point exists) cannot be
   decided from this.** See P4 below.
-- ⚠️ **The hybrid row above was measured with a leaky narrowing step.** The agent could
-  still reach mirrors and originals outside its candidates (found in P4, SPEC 14-9).
-  Re-measured with physical narrowing at 311 files it scores 0.939 (N=1); the
-  conclusion does not change.
+- The original P3 hybrid runs (`p3-hybrid-forced` / `p3-hybrid-abstain`) were measured
+  with a leaky narrowing step (found in P4, SPEC 14-9). Re-measured with physical
+  narrowing, forced accuracy went from 0.919 to 0.934, so the leak had not inflated it.
+  The row above is the re-measurement (`p3-hybrid-v2`).
 
 ## Scaling (P4): deciding H3
 
@@ -208,8 +208,8 @@ are in [`results/discarded-20260930-leaky-hybrid/`](../results/discarded-2026093
 | `classical` | **abstain** | 0.333 | **+0.288** | 0.379 | **0.880** | **$0.006** | 13.9 |
 | `agentic` | forced | 0.919 | +0.843 | 0.995 | 0.924 | $0.047 | 32.5 |
 | `agentic` | abstain | 0.909 | +0.843 | 0.975 | 0.933 | $0.050 | 53.0 |
-| `hybrid` | forced | 0.919 | +0.838 | 1.000 | 0.919 | $0.039 | 29.1 |
-| `hybrid` | abstain | 0.904 | +0.833 | 0.975 | 0.927 | $0.041 | 36.0 |
+| `hybrid` | forced | 0.934 | +0.869 | 1.000 | 0.934 | $0.036 | 36.3 |
+| `hybrid` | abstain | 0.944 | +0.889 | 1.000 | 0.944 | $0.039 | 33.0 |
 
 **The single most valuable thing you can give classical RAG is permission to say
 "I don't know."** The penalized score flips from **−0.076 to +0.288**. Accuracy

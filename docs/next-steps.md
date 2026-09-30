@@ -57,7 +57,8 @@ grep 一発で届き、規模が難しさにならない。詳細は SPEC §14-9
 | `p1-seed42-ja-k8` | Arm A × 11チャネル × 2モード × N=3（`version` は**旧設計**なので使わない） |
 | `p1-version-v2-k8` | Arm A × `version`（新設計）× 2モード × N=3 |
 | `p2-agentic-forced` / `p2-agentic-abstain` | Arm B × 11チャネル × N=3 |
-| `p3-hybrid-forced` / `p3-hybrid-abstain` | Arm C × 11チャネル × N=3（⚠️ 絞り込みに抜け道があった） |
+| `p3-hybrid-v2` | Arm C × 11チャネル × 2モード × N=3（物理的な絞り込み。P3 の比較はこれを使う） |
+| `p3-hybrid-forced` / `p3-hybrid-abstain` | 旧 Arm C（絞り込みに抜け道があった。置き換え済み・記録として残す） |
 | `compare-3arms` | P1〜P3 を重ねた図とレポート |
 | `p4-n{150,311,1000,5000}-{classical,agentic,hybrid}` | P4 本番（強制回答・N=1。311 の classical は P1 を流用） |
 | `p4-scaling` | P4 の図（`scaling.png`）とレポート |
@@ -65,6 +66,18 @@ grep 一発で届き、規模が難しさにならない。詳細は SPEC §14-9
 | `p4-pilot-n5000-agentic` | 所要時間の見積り専用（結論に使わない） |
 | `probe-p1-seed42-ja` | 検索プローブ（LLM 未使用） |
 | `discarded-20260925-nonhermetic` / `discarded-20260930-leaky-hybrid` | 破棄した run（理由つき） |
+
+P3 の比較図の再生成コマンド（`--also` は後の run が同じ (アーム, チャネル, モード) を上書きし、
+上書きは必ず標準出力に出る）:
+
+```bash
+uv run --no-sync python -m eval.report \
+  --run results/p1-seed42-ja-k8 \
+  --also results/p1-version-v2-k8 \
+  --also results/p2-agentic-forced --also results/p2-agentic-abstain \
+  --also results/p3-hybrid-v2 \
+  --out results/compare-3arms
+```
 
 P4 の図の再生成コマンド:
 
@@ -93,21 +106,7 @@ uv run --no-sync python -m eval.hermetic_audit --corpus corpus-1000/ --hybrid
 
 ## 残作業（どれも任意）
 
-### A. P3 の Arm C を物理的な絞り込みで測り直す
-
-P3 の `p3-hybrid-forced` / `p3-hybrid-abstain` は、絞り込みに抜け道があった状態の数字
-（SPEC §14-9 の 4）。311 ファイルの強制回答 N=1 では 0.939 で結論は変わらなかったが、
-`compare-3arms` の図と README の P3 表はまだ古い数字のまま。2 モード × N=3 で測り直して
-差し替えるなら:
-
-```bash
-uv run --no-sync python -m eval.run --corpus corpus/ --arms hybrid --k 20 \
-    --modes forced,abstain_ok --repeats 3 --run-id p3-hybrid-v2
-```
-
-（396 呼出、約 4 時間）。差し替えたら `compare-3arms` を再生成し、README の P3 表を更新する。
-
-### B. 識別子の無い設問で H3 を測る
+### A. 識別子の無い設問で H3 を測る
 
 P4 の結論は「設問が一意な文書コードを含む」コーパスでのもの。内容の記述でしか文書を
 特定できない設問では、agentic の探索が規模とともに重くなり、H3 が成り立つ余地がある。
