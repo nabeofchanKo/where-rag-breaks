@@ -75,6 +75,16 @@ def _save(fig: plt.Figure, path: Path) -> None:
 
 
 # ── 1. チャネル別ヒートマップ（主成果物）──────────────────────────
+ARM_ORDER = ("classical", "agentic", "hybrid")
+
+
+def _arm_then_tier(column: tuple[str, int]) -> tuple[int, str, int]:
+    """(アーム, 難易度) の並び順。既知のアームは A / B / C の順、未知のものはその後ろ。"""
+    arm, difficulty = column
+    rank = ARM_ORDER.index(arm) if arm in ARM_ORDER else len(ARM_ORDER)
+    return rank, arm, difficulty
+
+
 def channel_heatmap(frame: pd.DataFrame, out: Path, lab: Labels, mode: str) -> Path:
     """行=チャネル、列=アーム×難易度 の正答率ヒートマップ。
 
@@ -92,13 +102,12 @@ def channel_heatmap(frame: pd.DataFrame, out: Path, lab: Labels, mode: str) -> P
         .unstack(["arm", "difficulty"])
         .sort_index()
     )
-    pivot = pivot.reindex(sorted(pivot.columns), axis=1)
+    # アームは README の A / B / C の順に並べる（アルファベット順だと agentic が先に来る）
+    pivot = pivot.reindex(sorted(pivot.columns, key=_arm_then_tier), axis=1)
 
-    arms = sorted({arm for arm, _ in pivot.columns})
+    arms = list(dict.fromkeys(arm for arm, _ in pivot.columns))
     tier = (lambda d: f"難易度{d}") if lab.ja else (lambda d: f"tier {d}")
-    labels = [
-        tier(d) if len(arms) == 1 else f"{arm}\n{tier(d)}" for arm, d in pivot.columns
-    ]
+    labels = [tier(d) for _, d in pivot.columns]
 
     fig, ax = plt.subplots(figsize=(2.6 + 1.3 * len(pivot.columns), 0.45 * len(pivot) + 2.4))
     data = pivot.to_numpy(dtype=float)
@@ -111,6 +120,23 @@ def channel_heatmap(frame: pd.DataFrame, out: Path, lab: Labels, mode: str) -> P
     for index in range(1, len(pivot.columns)):
         if pivot.columns[index][0] != pivot.columns[index - 1][0]:
             ax.axvline(index - 0.5, color="white", linewidth=3)
+
+    # 目盛は難易度だけにし、アーム名はまとまりの中央に 1 回だけ出す（2 段の見出し）
+    if len(arms) > 1:
+        for arm in arms:
+            columns = [j for j, (a, _) in enumerate(pivot.columns) if a == arm]
+            ax.annotate(
+                arm,
+                xy=(sum(columns) / len(columns), 0),
+                xycoords=("data", "axes fraction"),
+                xytext=(0, -30),
+                textcoords="offset points",
+                ha="center",
+                va="top",
+                fontsize=13,
+                fontweight="bold",
+            )
+
     for i in range(data.shape[0]):
         for j in range(data.shape[1]):
             value = data[i, j]
@@ -125,9 +151,10 @@ def channel_heatmap(frame: pd.DataFrame, out: Path, lab: Labels, mode: str) -> P
                     fontweight="bold",
                 )
 
+    mode_ja = {"forced": "強制回答", "abstain_ok": "棄権あり"}.get(mode, mode)
     ax.set_title(
         lab(
-            f"チャネル別 正答率（{mode} モード・N={subset['repeat'].nunique()}）",
+            f"チャネル別 正答率（{mode_ja}・N={subset['repeat'].nunique()}）",
             f"Accuracy by channel ({mode}, N={subset['repeat'].nunique()})",
         )
     )
