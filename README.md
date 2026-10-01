@@ -18,6 +18,12 @@
 
 ![チャネル別の正答率（3アーム）](results/compare-3arms/figures/channel_heatmap.png)
 
+### 作り方
+
+**きっかけ**: RAG を作るコンペティションに古典的RAGで臨んで結果が出ず、上位の解法はどれもエージェント型だった。コンペのデータで作り直すのではなく、「どこで、なぜ壊れるのか」を誰でも再現できる形で測ることにした。
+
+**役割分担**: 課題設定（何を明らかにしたいか）は作者が行った。設計（チャネルと罠、アームの仕様、検査の方法）は AI（Claude Code）との壁打ちで検討し、採否は作者が判断した。実装・測定の実行・文書の下書きには AI コーディング支援を使い、結果を結論として採るかどうかは作者が決めた。
+
 ### 何をどう測ったか
 
 実務の文書QAでは、答えが**本文テキスト以外**に入っていることが多い。古典的RAGはそれをチャンク化の時点で落とし、落としたことに気づく仕組みもない。この現象を、誰でも再現できる形で測った。
@@ -88,19 +94,6 @@
 
 詳しい数字と図は [docs/findings.md](docs/findings.md)、設計の経緯は [SPEC.md](SPEC.md) §14。
 
-### 作り方
-
-**きっかけ**: RAG を作るコンペティションに古典的RAGで臨んで結果が出ず、上位の解法はどれもエージェント型だった。コンペのデータで作り直すのではなく、「どこで、なぜ壊れるのか」を誰でも再現できる形で測ることにした。
-
-**役割分担**: 課題設定（何を明らかにしたいか）は作者が行った。設計（チャネルと罠、アームの仕様、検査の方法）は AI（Claude Code）との壁打ちで検討し、採否は作者が判断した。実装・測定の実行・文書の下書きには AI コーディング支援を使い、結果を結論として採るかどうかは作者が決めた。
-
-AI が書いたコードと数字をそのまま信じないために、次の規律を先に決めて守った。
-
-- **反証されたら仕様を直す。結果に合わせて評価を曲げない。** `formula` と `version` は初版の罠を古典的RAGに突破され、罠のほうを作り直した（SPEC §14-1, §14-6）。
-- **LLM を呼ぶ前に、LLM を使わない検査で確かめる。** 検索プローブと規模プローブで、罠や規模が本当に効いているかを先に測る。
-- **比較の公平性を崩す穴は、見つけたら記録して測り直す。** 実行者の MCP 設定や自動メモリがアームに混入していた件、hybrid の絞り込みに抜け道があった件などを見つけ、塞いだうえで該当の run を破棄した（SPEC §14-4, §14-9、[破棄した run](results/discarded-20260930-leaky-hybrid/README.md)）。
-- **採点基準を結果を見てから変えない。** 変更は [docs/scoring-changes.md](docs/scoring-changes.md) にすべて記録する。
-
 ### 既知の限界
 
 - **合成コーパスでの結果である。** 実データ（IR資料など）での検証は未実施（SPEC §9）。
@@ -160,6 +153,12 @@ MIT
 3. **Growing the corpus 50-fold did not break the agent.** What broke was narrowing by retrieval before handing over to the agent: accuracy fell from about 1,500 files on, at roughly twice the cost.
 
 ![Accuracy by channel, three arms](results/compare-3arms/figures/channel_heatmap.png)
+
+### How this was built
+
+**Where it started**: the author entered a RAG-building competition with classical RAG and got nowhere, while the top solutions were all agentic. Rather than redo the competition data, the question became where classical RAG breaks and why, measured in a form anyone can reproduce.
+
+**Who did what**: the author set the problem (what needed to be found out). The design (channels and traps, the arms, how to check things) was worked out in back-and-forth with an AI (Claude Code), and the author decided what to adopt. Implementation, running the measurements and drafting the documents used AI coding assistance, and the author decided which results to accept as conclusions.
 
 ### What was measured, and how
 
@@ -230,19 +229,6 @@ The same 66 questions on corpora that differ only in how much filler they hold (
 The original hypothesis that hybrid pulls ahead as the corpus grows (H3) is not supported on this corpus.
 
 Full numbers and figures are in [docs/findings.en.md](docs/findings.en.md); the design history is in [SPEC.md](SPEC.md) section 14 (Japanese).
-
-### How this was built
-
-**Where it started**: the author entered a RAG-building competition with classical RAG and got nowhere, while the top solutions were all agentic. Rather than redo the competition data, the question became where classical RAG breaks and why, measured in a form anyone can reproduce.
-
-**Who did what**: the author set the problem (what needed to be found out). The design (channels and traps, the arms, how to check things) was worked out in back-and-forth with an AI (Claude Code), and the author decided what to adopt. Implementation, running the measurements and drafting the documents used AI coding assistance, and the author decided which results to accept as conclusions.
-
-To avoid taking AI-written code and numbers on trust, these rules were fixed first and kept.
-
-- **When falsified, fix the spec; never bend the evaluation to fit the result.** Classical RAG beat the first versions of the `formula` and `version` traps, and the traps were rebuilt (SPEC 14-1, 14-6).
-- **Check without an LLM before calling one.** A retrieval probe and a scale probe measure whether a trap or a corpus size actually bites.
-- **Record every gap that skews the comparison, then re-measure.** The runner's MCP settings and auto memory leaking into the arms, and a leak in hybrid's narrowing, were found, closed, and the affected runs discarded (SPEC 14-4, 14-9, [discarded runs](results/discarded-20260930-leaky-hybrid/README.md)).
-- **Never change scoring after seeing results.** Every change is logged in [docs/scoring-changes.md](docs/scoring-changes.md).
 
 ### Known limits
 
