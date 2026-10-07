@@ -58,7 +58,7 @@
 | **B `agentic`** | **0.919** | +0.843 | $0.047 | 32.5 |
 | **C `hybrid`** | **0.934** | +0.869 | $0.036 | 36.3 |
 
-311 ファイル・強制回答・N=3。Arm A はコントロール段が 11 チャネルすべてで 1.00、到達不能の段は 9 チャネルで 0.00 だった。塗り色・グラフ画像・空間配置・暗号化・ファイル横断集計は互いに別の機構なのに、8 チャネルがぴったり同じ正答率（0.333）に並ぶ。コントロール段が満点なので、原因は抽出器でも検索でもない。
+311 ファイル・強制回答・N=3。コストは CLI が呼出ごとに報告する定価換算額の平均で、契約プランの枠（CLI 認証）で走らせたため実請求額ではない。Arm A はコントロール段が 11 チャネルすべてで 1.00、到達不能の段は 9 チャネルで 0.00 だった。塗り色・グラフ画像・空間配置・暗号化・ファイル横断集計は互いに別の機構なのに、8 チャネルがぴったり同じ正答率（0.333）に並ぶ。コントロール段が満点なので、原因は抽出器でも検索でもない。
 
 **2. エージェントは「届かない」を解決するが、「古い値」にはより確実に騙される**
 
@@ -194,7 +194,7 @@ Each channel has three tiers.
 | **B `agentic`** | **0.919** | +0.843 | $0.047 | 32.5 |
 | **C `hybrid`** | **0.934** | +0.869 | $0.036 | 36.3 |
 
-311 files, forced mode, N=3. Arm A scored 1.00 on the control tier in all eleven channels and 0.00 on the unreachable tier in nine. Fill colors, chart images, spatial layout, encryption and cross-file sums are unrelated mechanisms, yet eight channels land on exactly the same accuracy (0.333). Since the control tier is perfect, neither the extractor nor retrieval is the cause.
+311 files, forced mode, N=3. Cost is the mean of the list-price figure the CLI reports per call; the runs used a subscription (CLI auth), so it is an estimate, not an amount billed. Arm A scored 1.00 on the control tier in all eleven channels and 0.00 on the unreachable tier in nine. Fill colors, chart images, spatial layout, encryption and cross-file sums are unrelated mechanisms, yet eight channels land on exactly the same accuracy (0.333). Since the control tier is perfect, neither the extractor nor retrieval is the cause.
 
 **2. The agent fixes "unreachable" and is fooled more reliably by "stale"**
 
