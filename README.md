@@ -38,13 +38,15 @@
 
 コーパスは合成で、答えの置き場所が違う **11 の情報チャネル**を持つ: 本文（`text`）、セルの塗り色（`format`）、数式（`formula`）、グラフ画像（`chart_only`）、グラフ定義（`chart_native`）、スキャンPDF（`scanned`）、図の空間配置（`layout`）、版の差分（`version`）、複数ファイルの集計（`cross_file`）、発表者ノート（`hidden`）、パスワード付きファイル（`locked`）。
 
-各チャネルは 3 段の難易度を持つ。
+`text` 以外の 10 チャネルは 3 段の難易度を持つ。
 
 | 段 | 位置づけ |
 |---|---|
 | **1 コントロール** | 同じ答えがテキストからも読める。古典的RAGが解けて当然の段 |
 | **2 到達不能** | 答えがそのチャネル固有の場所にしかない |
 | **3 囮つき** | 答えは到達不能で、かつ、もっともらしい間違った値が読める位置にある |
+
+`text` は古典的RAGが得意である「べき」ベースラインなので、段の意味が違う。1 = 専用の文に 1 つだけ書いてある、2 = 1 つの文に同種の候補が 2 つ並ぶ、3 = 素朴に読むと別の部署を答えてしまう。どれも 1 つのチャンクの中で答えられる。
 
 **コントロール段がこの設計の肝である。** ここが全問正解である限り、「罠を積んで baseline を潰しただけ」ではないと言える。
 
@@ -97,7 +99,7 @@
 ### 既知の限界
 
 - **合成コーパスでの結果である。** 実データ（IR資料など）での検証は未実施（SPEC §9）。
-- **設問数が少ない。** 1 チャネル 6 問（1 段あたり 2 問）。チャネル単位の傾向は安定しているが、段ごとの細かい順序までは主張できない。
+- **設問数が少ない。** 1 チャネル 6 問（`text` 以外は 1 段あたり 2 問、`text` は 3・2・1 問）。チャネル単位の傾向は安定しているが、段ごとの細かい順序までは主張できない。
 - **モデルは 1 種類**（`claude-sonnet-5`）。
 - **規模の測定は N=1**、設問は一意な文書コードを含む。識別子の無い設問では、規模の結論が変わる余地がある。
 - 311 ファイルの classical と agentic（P1・P2）は、CLI の自動メモリの索引が文脈に入った状態で測った（hybrid は入らない状態で測り直した）。索引は正解を含まないので、比較の結論は変わらないと判断している（SPEC §14-9）。
@@ -174,13 +176,15 @@ Three implementations answer the same 66 questions on the same corpus with the s
 
 The corpus is synthetic and has **eleven information channels** that differ in where the answer sits: body text (`text`), cell fill color (`format`), formulas (`formula`), chart images (`chart_only`), chart definitions (`chart_native`), scanned PDFs (`scanned`), spatial layout (`layout`), differences between revisions (`version`), sums across files (`cross_file`), presenter notes (`hidden`) and password-protected files (`locked`).
 
-Each channel has three tiers.
+The ten channels other than `text` have three tiers.
 
 | Tier | Role |
 |---|---|
 | **1 control** | The same answer is also readable as text. Classical RAG should get it |
 | **2 unreachable** | The answer exists only in the channel-specific place |
 | **3 decoy** | Unreachable, and a plausible wrong value sits where it can be read |
+
+`text` is the baseline classical RAG should handle, so its tiers mean something else: 1 = the answer has a sentence to itself, 2 = one sentence holds two candidates of the same kind, 3 = a naive reading returns the wrong department. Every one is answerable within a single chunk.
 
 **The control tier is what makes the design hold.** As long as it scores perfectly, the result is not just a baseline buried under traps.
 
@@ -233,7 +237,7 @@ Full numbers and figures are in [docs/findings.en.md](docs/findings.en.md); the 
 ### Known limits
 
 - **The corpus is synthetic.** Validation on real data such as investor-relations filings has not been done (SPEC 9).
-- **Few questions.** Six per channel, two per tier. Channel-level patterns are stable; the ordering of individual tiers is not something these numbers can claim.
+- **Few questions.** Six per channel: two per tier, except `text` with three, two and one. Channel-level patterns are stable; the ordering of individual tiers is not something these numbers can claim.
 - **One model** (`claude-sonnet-5`).
 - **The scaling runs are N=1**, and every question carries a unique document code. Without such identifiers the scaling conclusion could differ.
 - The 311-file classical and agentic runs (P1, P2) were made with the CLI's auto-memory index in context (hybrid was re-measured without it). The index holds no answers, so we judge the comparison unaffected (SPEC 14-9).
